@@ -277,6 +277,10 @@ body.has-story > header { grid-column: 1 / -1; }
 #storyGrip:hover, #storyGrip.drag { background: linear-gradient(90deg, transparent 2px, var(--focus) 2px, var(--focus) 5px, transparent 5px); }
 @media (max-width: 860px) { body.has-story { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 45vh); }
   body.has-story > #story { grid-column: 1; grid-row: 5; border-left: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
+/* read-only: nothing to edit, load or save */
+.readonly .blk .tools, .readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus,
+.readonly #dsSel, .readonly label.btn:has(#file), .readonly #tagPanel kbd { display: none !important; }
+.readonly .comment { cursor: auto; }
 ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--line2); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; } ::-webkit-scrollbar-track { background: transparent; }
 </style>
 </head>
@@ -387,6 +391,10 @@ let channels = [], chanByKey = new Map(), chFilter = '';  // channels: [{key, n,
 let scope = 'all', xmode = 'time', view = { a: 0, b: 1 }, lanes = [], laneOf = new Map();
 let hidden = new Set(), hits = [], hitCur = -1, showOthers = false;
 const writable = location.protocol.startsWith('http');
+// Read-only (a public demo): <html data-readonly>, or ?readonly. Nothing can be edited or saved.
+const READONLY = document.documentElement.hasAttribute('data-readonly') || new URLSearchParams(location.search).has('readonly');
+if (READONLY) document.documentElement.classList.add('readonly');
+const EMBEDDED = window.parent !== window;  // inside a page (the website): tell it which event is open, take "go to" requests
 
 // ---------- helpers ----------
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -521,6 +529,7 @@ function sortedActions(how = 'time') {
 let saveTimer;
 function changed() {  // an edit to the incident: repaint what depends on it, then save
   indexActions(); computeLanes(); renderDetail(false); renderTags(); renderStory(); draw();
+  if (READONLY) return;
   clearTimeout(saveTimer); status('Saving…'); saveTimer = setTimeout(save, 350);
 }
 function status(s) { $('saveStatus').textContent = s; }
@@ -537,7 +546,7 @@ const syncMeta = () => { const meta = incList.find(x => x.id === incId); if (met
 // seconds (pollIncidents), so what an agent writes shows up without a reload.
 let incVer = null, incBase = null, saving = false, saveAgain = false;
 async function save() {
-  if (!INC) return;
+  if (!INC || READONLY) return;
   if (saving) { saveAgain = true; return; }  // one save at a time, each from the version the last one left
   INC.updated = new Date().toISOString(); syncMeta();
   if (!writable) return status('Not saved: open it through forel serve');
@@ -596,7 +605,7 @@ function mergeList(base, mine, disk, key) {
   return out;
 }
 async function pollIncidents() {  // files changed or added on disk (an agent at work): show them
-  if (!writable || document.hidden || !DS) return;
+  if (!writable || READONLY || document.hidden || !DS) return;
   let vers; try { const r = await fetch('incidents/versions.json', { cache: 'no-store' }); if (!r.ok) return; vers = await r.json(); } catch { return; }
   if (Object.keys(vers).some(k => !incList.some(x => x.id === k)) || incList.some(x => !x.local && !(x.id in vers))) {
     await loadIncidentList(); if (INC) syncMeta(); draw();
@@ -620,7 +629,7 @@ function newIncident() {
   indexActions(); fillSelectors(); computeLanes(); renderSide(); renderStory(); draw(); renderDetail(false); save(); updateURL(); armLayout();
   return true;
 }
-function ensureIncident() { return INC ? true : newIncident(); }
+function ensureIncident() { return READONLY ? false : INC ? true : newIncident(); }  // every edit to events and tags goes through here
 function coverPinned(i) {  // a pinned event must fall inside the incident's from_to: widen the range to reach it
   const a = INC.actions.find(x => x.event_id === E[i].event_id); if (!a?.pinned) return;
   const t = E[i]._t, iso = ms => new Date(ms).toISOString().replace('.000Z', 'Z');
@@ -703,6 +712,7 @@ $('tagPanel').addEventListener('click', ev => {
   if (ev.target.id === 'tagAdd') { if (newTag()) changed(); return; }
   const row = ev.target.closest('.trow[data-k]'); if (!row) return;
   const t = INC.tags[+row.dataset.k];
+  if (READONLY) return openTagTab(t);
   if (ev.target.closest('.x')) {
     const used = INC.actions.filter(a => a.tag === t.id);
     if (used.length && !confirm(`Delete the tag "${t.label}"? ${used.length} event${used.length > 1 ? 's lose' : ' loses'} it.`)) return;
@@ -720,7 +730,7 @@ function openTagTab(t) {  // a tab in the event list with the open incident's ev
   openTab('tag', { key: `${incId}:${t.id}`, name: t.label, idxs, n: idxs.length });
 }
 $('tagPanel').addEventListener('dblclick', ev => {
-  const row = ev.target.closest('.trow[data-k]'); if (!row || ev.target.closest('.sw, .x')) return;
+  const row = ev.target.closest('.trow[data-k]'); if (READONLY || !row || ev.target.closest('.sw, .x')) return;
   const t = INC.tags[+row.dataset.k], label = prompt('Rename the tag:', t.label);
   if (label?.trim()) editTags(() => { t.label = label.trim(); });
 });
@@ -831,6 +841,7 @@ function focusLane() {
 // A bare lane hides its plain (grey) events, keeping the pinned and commented ones.
 let hoverK = -1;
 const canArrange = () => scope === 'incident' && !!INC;
+const canEditLanes = () => canArrange() && !READONLY;  // the lane controls: pin, drag, add, remove, filter
 const laneKey = l => laneMode === 'agent' ? l.agent.key : l.chan ? l.chan.key : '';  // '': (no channel)
 function laneCfg() { const c = INC?.lanes?.[laneMode] || {}; return { pinned: c.pinned || [], order: c.order || [], added: c.added || [], bare: c.bare || [] }; }
 function setLaneCfg(c) { (INC.lanes ||= {})[laneMode] = c; changed(); }
@@ -940,7 +951,7 @@ const unpx = p => view.a + (p - GUT) / (W - GUT - 12) * (view.b - view.a);
 function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
 function paint() {
   noteLayout();
-  const arr = canArrange(), cv = $('tlCanvas'), LH = laneH(), H = AX + Math.max((lanes.length + arr) * LH, 48) + 8;
+  const arr = canEditLanes(), cv = $('tlCanvas'), LH = laneH(), H = AX + Math.max((lanes.length + arr) * LH, 48) + 8;
   W = cv.clientWidth; const gutW = gutWs[gutKey()]; GUT = gutW ? Math.round(Math.max(90, Math.min(W * .7, gutW))) : laneMode === 'channel' && scope === 'incident' ? Math.min(320, Math.round(Math.max(220, W * .3))) : scope === 'incident' ? 160 : Math.min(300, Math.round(W * .24));
   const dpr = devicePixelRatio || 1;
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px'; }
@@ -1117,7 +1128,7 @@ function centerOn(i) {  // keep the focused event on screen
   const laneAt = my => Math.floor((my - AX) / laneH());
   const ICON_TIP_MS = 3000; let iconAt = '', iconTimer = 0, iconPos = [0, 0];  // the lane icon under the pointer, and its hint's timer
   const iconOff = () => { if (iconAt) { iconAt = ''; clearTimeout(iconTimer); } };
-  const laneIcon = (lane, mx) => !canArrange() || !lane || lane.temp || mx >= GUT - 12 ? null  // which of a lane's icons is at x = mx
+  const laneIcon = (lane, mx) => !canEditLanes() || !lane || lane.temp || mx >= GUT - 12 ? null  // which of a lane's icons is at x = mx
     : mx >= GUT - 34 ? 'pin' : lane.added && mx >= GUT - 50 ? 'x' : mx >= GUT - (lane.added ? 66 : 50) ? 'bare' : null;
   const iconTip = (lane, ic) => ic === 'pin' ? (lane.pinned ? 'Unpin this lane' : 'Pin this lane: keep it at the top')
     : ic === 'x' ? 'Remove this lane' : ic === 'bare' ? (lane.bare ? 'Show all the events on this lane again' : 'Hide the grey events on this lane: keep only the pinned and commented ones') : '';
@@ -1126,7 +1137,7 @@ function centerOn(i) {  // keep the focused event on screen
     const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, k = laneAt(e.clientY - r.top);
     if (onGutEdge(mx)) { gutDrag = { x: e.clientX, w: GUT }; e.preventDefault(); return; }
     drag = { x: e.clientX, a: view.a, b: view.b, moved: false };
-    if (canArrange() && mx < GUT - (lanes[k]?.added ? 66 : 50) && lanes[k] && !lanes[k].temp) laneDrag = { k, y: e.clientY, t: k, moved: false };  // a lane's label: drag it up or down
+    if (canEditLanes() && mx < GUT - (lanes[k]?.added ? 66 : 50) && lanes[k] && !lanes[k].temp) laneDrag = { k, y: e.clientY, t: k, moved: false };  // a lane's label: drag it up or down
   });
   addEventListener('mousemove', e => {
     if (gutDrag) { gutWs[gutKey()] = Math.max(90, Math.min(W * .7, gutDrag.w + e.clientX - gutDrag.x)); laidOut = ''; tip.classList.add('hidden'); draw(); return; }
@@ -1145,7 +1156,7 @@ function centerOn(i) {  // keep the focused event on screen
     }
     if (e.target !== cv) return tip.classList.add('hidden');
     const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, m = hitTest(mx, my);
-    const lk = laneAt(my), lane = lanes[lk], hk = canArrange() && mx < GUT - 12 && lk >= 0 && lk <= lanes.length ? lk : -1;
+    const lk = laneAt(my), lane = lanes[lk], hk = canEditLanes() && mx < GUT - 12 && lk >= 0 && lk <= lanes.length ? lk : -1;
     if (hk !== hoverK) { hoverK = hk; draw(); }
     const edge = onGutEdge(mx); if (edge !== gutHover) { gutHover = edge; draw(); }
     cv.style.cursor = edge ? 'col-resize' : m || (lane && mx < GUT - 12) || hk === lanes.length ? 'pointer' : 'crosshair';
@@ -1178,7 +1189,7 @@ function centerOn(i) {  // keep the focused event on screen
     const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     const m = hitTest(mx, my), lk = laneAt(my), lane = lanes[lk];
     if (m) return m.inc && m.inc !== incId ? selectIncident(m.inc, E[m.i].event_id) : setFocus(m.i);
-    if (canArrange() && mx < GUT - 12) {  // the "+" row, a lane's pin, an added lane's ×, a lane's filter
+    if (canEditLanes() && mx < GUT - 12) {  // the "+" row, a lane's pin, an added lane's ×, a lane's filter
       if (lk === lanes.length) return openLaneAdd(e.clientX, e.clientY);
       const ic = laneIcon(lane, mx);
       if (ic === 'pin') { tip.classList.add('hidden'); return toggleLanePin(lk); }
@@ -1247,7 +1258,7 @@ function blockHTML(i, isFocus) {
     <div class="meta">${a ? `<span class="pb p${p}" title="Priority ${a.priority}${a.pinned ? '' : ' (unpinned)'}">${a.pinned ? 'P' + a.priority : 'unpinned'}</span>` : ''}<span class="who" title="Open a tab with all of ${esc(e._a.name)}'s events (${e._a.n.toLocaleString()})">${esc(e._a.name)}</span>${e.agent_type ? `<span class="tag" title="agent_type">${esc(e.agent_type)}</span>` : ''}
       <span class="t">${fmtT(e._t)} UTC</span>${tagOf(a) ? `<span class="tagpill" style="--tc:${esc(tagOf(a).color)}" title="Tag">${esc(tagOf(a).label)}</span>` : ''}${e.source ? `<span class="tag" title="source">${esc(e.source)}</span>` : ''}${e._c ? `<button class="tag chan" title="Open a tab with everything that happened in this channel (${e._c.n.toLocaleString()} events)">${esc(e._c.key)}</button>` : ''}${e.tool ? `<span class="tag tool" title="${esc(e.tool)}">${esc(e.tool)}</span>` : ''}
       <span class="tools sp">${pr}<button class="pin${a?.pinned ? ' on' : ''}" title="${a?.pinned ? 'Unpin from' : 'Pin to'} the incident (p)">${icon('pin')}</button><button class="tg${a?.tag ? ' on' : ''}" title="${tagOf(a) ? `Tag: ${esc(tagOf(a).label)}` : 'Tag'}" style="--tc:${tagOf(a) ? esc(tagOf(a).color) : 'none'}">${icon('tag')}</button><button class="cm${a?.comment ? ' on' : ''}" title="Comment (c)">${icon('comment')}</button></span></div>
-    ${a?.comment ? `<div class="comment" title="Click to edit">${esc(a.comment)}</div>` : ''}
+    ${a?.comment ? `<div class="comment"${READONLY ? '' : ' title="Click to edit"'}>${esc(a.comment)}</div>` : ''}
     ${e.reasoning ? `<details class="cot"${$('showCot').checked ? ' open' : ''}><summary>reasoning</summary><div class="body">${md(e.reasoning)}</div></details>` : ''}
     <div class="text">${e.text ? md(e.text) : '<span class="small">(no text)</span>'}</div></div>`;
 }
@@ -1353,7 +1364,13 @@ function updateURL() {
   const p = new URLSearchParams({ dataset: DS.id }); if (incId) p.set('incident', incId); if (tabChannel()) p.set('channel', tabChannel().key);
   if (focus >= 0) p.set('event', E[focus].event_id);
   history.replaceState(null, '', '?' + p); noteLayout();
+  if (EMBEDDED) parent.postMessage({ type: 'forel:focus', dataset: DS.id, incident: incId, event: p.get('event'), channel: p.get('channel') }, location.origin);
 }
+// The page around an embedded viewer can send {type: 'forel:goto', event} to open an event (same origin only).
+addEventListener('message', e => {
+  if (e.origin !== location.origin || e.source !== parent || e.data?.type !== 'forel:goto') return;
+  const i = byId.get(String(e.data.event)); if (i != null && i !== focus) setFocus(i);
+});
 // Tabs over the event list: "All events", plus one per agent or channel (opened from a block's name or channel tag),
 // and search tabs (opened with +).
 // Each tab keeps its own open event and scroll position.
@@ -1950,9 +1967,10 @@ function cellEl(c, k, n) {
   const locked = cellLocked(c);
   sec.innerHTML = `<div class="sv-head"><button class="sv-fold" data-a="fold" title="${c.collapsed ? 'Expand' : 'Collapse'}">${c.collapsed ? '▸' : '▾'}</button>` +
     `<span class="sv-title" data-a="fold" title="${c.collapsed ? 'Expand' : 'Collapse'}">${esc(cellTitle(c, frag))}</span>` +
+    (READONLY ? '</div><div class="sv-body"></div>' :
     `<button class="sv-lock${locked ? ' on' : ''}" data-a="lock" aria-pressed="${locked}" title="${locked ? 'Locked: agents must not change this cell. Click to unlock.' : 'Unlocked: agents may edit this cell. Click to lock it.'}">${locked ? LOCK_ON : LOCK_OFF}</button>` +
     `<span class="sv-tools"><button data-a="up" title="Move up"${k === 0 ? ' disabled' : ''}>↑</button><button data-a="down" title="Move down"${k === n - 1 ? ' disabled' : ''}>↓</button>` +
-    `<button data-a="edit" title="Edit this cell">Edit</button><button data-a="add" title="Add a cell below">+</button><button data-a="del" title="Delete this cell">×</button></span></div><div class="sv-body"></div>`;
+    `<button data-a="edit" title="Edit this cell">Edit</button><button data-a="add" title="Add a cell below">+</button><button data-a="del" title="Delete this cell">×</button></span></div><div class="sv-body"></div>`);
   sec.lastChild.append(frag);
   return sec;
 }
@@ -1964,8 +1982,8 @@ function renderStory() {
   const cells = storyCells(), top = $('storyBody').scrollTop;
   storyRoot.innerHTML = `<style>${STORY_CSS}</style><style>${storyStyle()}</style>`;
   cells.forEach((c, k) => storyRoot.append(cellEl(c, k, cells.length)));
-  if (!cells.length) storyRoot.append(cleanHTML(`<p class="sv-empty">No story yet. Add a cell to write one: markdown, with links to events.</p>`));
-  storyRoot.append(cleanHTML(`<button class="sv-add" data-a="append">+ Add a cell</button>`));  // (a shadow root has no insertAdjacentHTML)
+  if (!cells.length) storyRoot.append(cleanHTML(`<p class="sv-empty">${READONLY ? 'No story for this incident.' : 'No story yet. Add a cell to write one: markdown, with links to events.'}</p>`));
+  if (!READONLY) storyRoot.append(cleanHTML(`<button class="sv-add" data-a="append">+ Add a cell</button>`));  // (a shadow root has no insertAdjacentHTML)
   let n = 0, bad = 0;
   for (const el of storyRoot.querySelectorAll('[data-event], a[href^="#event="]')) {
     if (!el.dataset.event) el.dataset.event = el.getAttribute('href').slice(7);
@@ -2042,7 +2060,7 @@ storyRoot.addEventListener('input', () => { if (storyEditing) storyEditing.dirty
 addEventListener('beforeunload', ev => { if (storyEditing?.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
 function cellAction(a, k) {
-  const cells = storyCells(), c = cells[k]; if (!c) return;
+  const cells = storyCells(), c = cells[k]; if (!c || (READONLY && a !== 'fold')) return;
   if (a === 'fold') { if (c.collapsed) delete c.collapsed; else c.collapsed = true; return changed(); }
   if (a === 'lock') { c.locked = !cellLocked(c); return changed(); }
   if (a === 'up' || a === 'down') { const j = a === 'up' ? k - 1 : k + 1; if (j < 0 || j >= cells.length) return; [cells[k], cells[j]] = [cells[j], cells[k]]; return changed(); }
@@ -2298,7 +2316,7 @@ async function readFiles(files) {
 }
 $('file').onchange = e => readFiles(e.target.files);
 document.addEventListener('dragover', e => e.preventDefault());
-document.addEventListener('drop', e => { e.preventDefault(); readFiles(e.dataTransfer.files); });
+document.addEventListener('drop', e => { e.preventDefault(); if (!READONLY) readFiles(e.dataTransfer.files); });
 $('theme').onclick = () => {
   const r = document.documentElement; r.dataset.theme = isDark() ? 'light' : 'dark';
   try { localStorage.setItem('theme', r.dataset.theme); } catch {}
@@ -2306,6 +2324,11 @@ $('theme').onclick = () => {
 };
 document.fonts?.ready.then(draw);  // the timeline is a canvas: repaint once the web font is in
 try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+addEventListener('storage', e => {  // the theme was switched in another tab, or by the page this viewer is embedded in
+  if (e.key !== 'theme') return;
+  if (e.newValue) document.documentElement.dataset.theme = e.newValue; else delete document.documentElement.dataset.theme;
+  storyTheme(); draw();
+});
 
 async function start(incident, event, channel) {  // a dataset has just been set
   fillSelectors(); setScope('all'); resetTabs(); restoreViews(); renderSide();
