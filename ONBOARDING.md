@@ -26,7 +26,7 @@ answer by looking at the data. Ask when a choice is theirs to make: which traces
 leave their machine (it never needs to: forel runs locally), or what they most want to learn, if they haven't said.
 
 The exact file formats come with forel: run `forel docs` once it is installed (step 1) and read them before step 3.
-They are also [on GitHub](https://github.com/forel-io/forel/blob/main/forel/docs/format.md).
+They are also [online](https://github.com/forel-io/forel/blob/main/forel/docs/format.md).
 
 ## 1. Install forel and create a workspace
 
