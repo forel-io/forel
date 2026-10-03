@@ -286,9 +286,10 @@ body.has-story > header { grid-column: 1 / -1; }
   body.has-story > :not(#story, header) { grid-column: 1; }
   body.has-story > #story { grid-column: 1; grid-row: 5; border-right: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
 /* read-only: nothing to edit, load or save */
-.readonly .blk .tools, .readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus, .readonly #exportBtn,
+.readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus, .readonly #exportBtn,
 .readonly #dsSel, .readonly label.btn:has(#file), .readonly #tagPanel kbd { display: none !important; }
 .readonly .comment { cursor: auto; }
+.readonly .blk .tools { pointer-events: none; }  /* an event's priority, pin and tag stay in view, as they are, but can't be changed */
 ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--line2); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; } ::-webkit-scrollbar-track { background: transparent; }
 </style>
 </head>
