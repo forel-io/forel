@@ -93,8 +93,14 @@ it. How to find it depends on the data, and deciding is your job:
   still places them in their channel. Don't guess an author from writing style.
 - **Several names, one actor.** Merge names (case, typos, a renamed agent) only when the data shows they are the
   same actor, and keep the rule in the script.
-- **People are actors too.** A human operator, a moderator or a system bot gets its own name and an `agent_type`
-  such as `human` or `system`.
+- **People are actors too.** A human operator or a moderator gets its own name.
+
+Set **`agent_type`** for every actor, as one of:
+
+- a human: `human` and their role, e.g. `human admin`, `human operator`, `human user`;
+- an AI agent whose model is known: the model name, e.g. `Opus 5`, `GPT-5`, `Gemini 3 Pro`;
+- an AI agent whose model is unknown: `ai agent`;
+- a bot or automated account that is not an AI agent: `system`.
 
 Write down the rule you used and its coverage: "Agent read from the trailing `--- AgentNN` signature: 91% of 12,408
 posts; the rest are unsigned edits, mostly typo fixes". That goes in the overview story (step 5).
@@ -156,25 +162,34 @@ quiet. These become the leads in step 5.
 ## 5. Write the overview story
 
 The person's way in is one incident file, `incidents/overview.json`, that covers the whole dataset and tells its
-**story** in cells (`forel docs`, [Story cells](https://github.com/forel-io/forel/blob/main/forel/docs/format.md#story-cells)). Keep it short: **about one page of text and three
-plots**. The person reads it in two minutes and then asks for more. The timelines carry the stories; the text only
-points at them.
+**story** in cells (`forel docs`, [Story cells](https://github.com/forel-io/forel/blob/main/forel/docs/format.md#story-cells)). Keep it short: **about one page of text and four
+timelines**. The person reads it in two minutes and then asks for more. The timelines carry the stories; the text
+only points at them.
 
 Set `"story_links": "channel"` in the file, so that a click on any link or timeline marker opens the event in its
 channel's tab, read in context. Use `"agent"` instead if the record is per-agent logs rather than shared places.
 `from_to` spans the dataset. Write these cells:
 
-1. **Orientation.** One paragraph of 50 to 60 words: what this data is. Who the agents are, where they act, over
-   what period, and what they were trying to do. Then one line of numbers: agents (and of which types), first and
-   last date, events, channels. Then an activity chart: `<figure data-forel="activity"></figure>`. Then one line
-   that introduces the **tags** (below): the kinds of things the agents are doing, each with its color, e.g.
-   `<span style="color:#2f6fdb">●</span> Coordinating`.
+1. **What happened**, in one cell:
+   - **One line** that says what happened, in plain words, for someone who knows nothing about this data: who the
+     agents were, what they were asked to do, and what they did. No jargon, no names the reader can't know yet, no
+     numbers. For example: "Two dozen AI agents were each given a week to fix bugs in a shared codebase. Instead of
+     working alone, they started leaving notes for each other in an unused wiki, and within days were splitting the
+     work and copying each other's fixes." Write your own; don't reuse this one.
+   - **The main timeline**: the main phases of the whole record, in one figure. Pick the 4 to 8 events where a
+     phase starts or turns, and draw them with the activity over the whole period above them:
+     `<figure data-forel="timeline" data-activity data-events="<id> <id> ..."></figure>`.
+   - **One line naming the phases**, pointing at the markers: "Setup (1), the first contact on the wiki (2), the
+     sharing of answers (3 to 5), the shutdown (6)."
+   - **One line of numbers**: agents (and of which types), first and last date, events, channels.
 2. **How the data was built.** Only if the conversion relied on a strong inference, in one to three lines, e.g.
    "Agent names are recovered from the `--- AgentNN` signature at the end of posts (91% of posts); unsigned edits are
    shown as unknown." Skip this cell when the conversion was a direct mapping. Put the full notes in
    `scripts/NOTES.md`, so you can answer when the person asks.
-3. **Three stories**, one cell each: what the agents are doing, told through three crisp episodes you found by
-   reading. For each:
+3. **What are the agents doing.** A cell with this heading and one line that introduces the **tags** (below), each
+   with its color, e.g. `<span style="color:#2f6fdb">●</span> Asks for an answer`.
+4. **Three stories**, one cell each, after it: what the agents are doing, told through three crisp episodes you
+   found by reading. For each:
    - a heading that names the episode;
    - **two sentences**: what happens and why it matters, pointing at the timeline's numbered markers, e.g.
      "Dec14 hands the lead to Jan13 (3), then to Sep09 (7)";
@@ -194,11 +209,13 @@ action first comes up, say in a short clause what it does, especially when a cli
 it", "a bar opens the first event of that week", "click a tag in the Tags panel to list all its events". Use three or
 four of these across the cells, never a separate manual.
 
-Then **pin** every event the timelines use, as `actions`. Give the incident three to five **tags** for the different
-things the agents are doing (e.g. "Coordinating", "Reporting results", "Arguing over the rules", "Off task"), and
-tag each pinned event **by reading it**: the tags are your interpretation. They color the timeline markers, and they
-list in the Tags panel. Introduce them in the orientation cell, as above. Put a `comment` on the few events a person
-must read first.
+Then **pin** every event the timelines use, as `actions`, and **tag** them. A tag labels an **action**: what that one
+event does, as a reader would put it, e.g. "Asks for an answer", "Shares a result", "Shares a way around a
+restriction", "Corrects another agent", "Reports to the operator". A tag is not a theme, a story or an agent. Choose
+three to six tags for actions that recur across the timelines, so that a color means the same kind of action on
+every timeline, the main one included, and on the viewer's timeline. Tag each pinned event **by reading it**: the
+tags are your interpretation. They list in the Tags panel; introduce them in the "What are the agents doing" cell,
+as above. Put a `comment` on the few events a person must read first.
 
 Check it with `forel check forel-workspace overview`, and fix what it reports.
 

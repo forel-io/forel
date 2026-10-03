@@ -1843,7 +1843,7 @@ svg.fx g[data-event] circle { stroke: var(--panel); stroke-width: 1.5; }
 svg.fx g[data-event]:hover circle, svg.fx g[data-event].cur circle { stroke: var(--ink); stroke-width: 2; }
 svg.fx .fx-num { fill: #fff; font-size: 9px; font-weight: 700; pointer-events: none; }
 svg.fx .fx-other { fill: var(--muted); opacity: .45; } svg.fx .fx-other:hover { opacity: 1; }
-svg.fx .fx-bar:hover rect { opacity: .75; }
+svg.fx .fx-bar:hover rect { opacity: .75; } svg.fx .fx-act { fill: var(--muted); opacity: .45; }
 .fx-key { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 11.5px; color: var(--muted); margin: 2px 0 0; }
 .fx-key span { display: inline-flex; align-items: center; gap: 5px; } .fx-key i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 .fx-msg { font-size: 12px; color: var(--muted); font-style: italic; }
@@ -2043,7 +2043,9 @@ function markStory() {  // highlight the links to the open event
 // ---- figures the viewer draws in a cell from the dataset (agents write only the element; the editor keeps it as is):
 // <figure data-forel="timeline" data-events="<id> <id> ..."> the events on a timeline, numbered in time order, a lane
 //   per agent (data-lanes="channel": per channel); data-others adds the lanes' other events in grey; data-from/data-to
-//   set the range. A marker is an event link, colored by its tag in this incident, else by its agent.
+//   set the range; data-activity adds a strip above the lanes with the number of events over time (all of the
+//   dataset's events, not only the lanes') and makes the range the whole dataset unless data-from/data-to say. A marker is an event link, colored by its tag in this incident, else by
+//   its agent.
 // <figure data-forel="activity"> events over time, stacked by agent (data-by="channel": by channel, "none": one
 //   series); data-from/data-to limit it. A bar opens the first event in it.
 // A <figcaption> inside the figure is kept, under the drawing.
@@ -2079,14 +2081,27 @@ function fxTimeline(fig) {
   const byCh = fig.dataset.lanes === 'channel', key = i => byCh ? E[i]._c?.key ?? '' : E[i]._a.key;
   const lanes = [], L = new Map();
   for (const i of order) { const k = key(i); if (!L.has(k)) L.set(k, lanes.push(byCh ? (E[i]._c?.key ?? '(no channel)') : E[i]._a.name) - 1); }
-  let [t0, t1] = fxRange(fig, E[order[0]]._t, E[order[order.length - 1]]._t);
+  const act = fig.dataset.activity != null && fig.dataset.activity !== 'false', AH = act ? 46 : 0;  // with activity: the whole dataset by default
+  let [t0, t1] = act ? fxRange(fig, Math.min(E[0]._t, E[order[0]]._t), Math.max(E[E.length - 1]._t, E[order[order.length - 1]]._t)) : fxRange(fig, E[order[0]]._t, E[order[order.length - 1]]._t);
   if (t1 - t0 < 60e3) { t0 -= 30e3; t1 += 30e3; }
   const pd = (t1 - t0) * .04; t0 -= pd; t1 += pd;
-  const W = fxWidth(fig), G = Math.round(Math.min(W * .32, 14 + 6.3 * Math.max(...lanes.map(l => Math.min(l.length, 24))))), LH = 24, TOP = 8, H = TOP + lanes.length * LH + 22;
+  const W = fxWidth(fig), G = Math.round(Math.min(W * .32, 14 + 6.3 * Math.max(...lanes.map(l => Math.min(l.length, 24))))), LH = 24, TOP = 8 + AH, H = TOP + lanes.length * LH + 22;
   const x = t => (G + (t - t0) / (t1 - t0) * (W - G - 12)).toFixed(1), y = k => TOP + k * LH + LH / 2;
   const { step, ticks } = fxTicks(t0, t1, Math.max(3, Math.floor((W - G) / 85)));
-  let s = ticks.map((t, n) => `<line class="fx-grid" x1="${x(t)}" x2="${x(t)}" y1="${TOP}" y2="${H - 20}"/><text class="fx-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fxLabel(t, step, ticks[n - 1])}</text>`).join('');
+  let s = ticks.map((t, n) => `<line class="fx-grid" x1="${x(t)}" x2="${x(t)}" y1="${TOP - AH}" y2="${H - 20}"/><text class="fx-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fxLabel(t, step, ticks[n - 1])}</text>`).join('');
   s += lanes.map((l, k) => `<line class="fx-lane" x1="${G}" x2="${W - 12}" y1="${y(k)}" y2="${y(k)}"/><text class="fx-name" x="${G - 8}" y="${y(k) + 3.5}" text-anchor="end">${esc(snip(l, Math.max(6, Math.floor((G - 14) / 6.3) - 1)))}</text>`).join('');
+  if (act) {  // events over time, in bars about 4px wide on the same axis; a bar opens its first event
+    const nb = Math.max(10, Math.min(150, Math.floor((W - G - 12) / 4))), bin = (t1 - t0) / nb, cnt = new Array(nb).fill(0), first = new Array(nb).fill(-1);
+    for (let i = firstAtOrAfter(t0); i < E.length && E[i]._t <= t1; i++) { const b = Math.min(nb - 1, Math.floor((E[i]._t - t0) / bin)); cnt[b]++; if (first[b] < 0) first[b] = i; }
+    const max = Math.max(1, ...cnt), PH = AH - 12, bw = (W - G - 12) / nb;
+    s += `<line class="fx-lane" x1="${G}" x2="${W - 12}" y1="${TOP - 6}" y2="${TOP - 6}"/><text class="fx-name" x="${G - 8}" y="${TOP - 6 - PH / 2 + 3.5}" text-anchor="end">events</text>` +
+      `<text class="fx-ax" x="${G + 2}" y="${TOP - 6 - PH - 1}">${max.toLocaleString()}</text>`;
+    cnt.forEach((n, b) => {
+      if (!n) return;
+      const h = Math.max(1, n / max * PH), when = fmtT(t0 + b * bin, false);
+      s += `<g class="fx-bar" data-event="${esc(E[first[b]].event_id)}" data-tip="${esc(when)}: ${n.toLocaleString()} event${n === 1 ? '' : 's'}"><rect class="fx-act" x="${(G + b * bw + .3).toFixed(1)}" y="${(TOP - 6 - h).toFixed(1)}" width="${Math.max(1, bw - .6).toFixed(1)}" height="${h.toFixed(1)}"/></g>`;
+    });
+  }
   if (fig.dataset.others != null && fig.dataset.others !== 'false') {  // the lanes' other events in the range, in grey
     const mine = new Set(order);
     for (let i = firstAtOrAfter(t0), c = 0; i < E.length && E[i]._t <= t1 && c < 3000; i++) {

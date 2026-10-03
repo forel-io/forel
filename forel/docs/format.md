@@ -21,7 +21,7 @@ A dataset is a list of **event blocks**, one per thing an agent did or said, or 
 | `time_stamp` | When it happened: ISO 8601, UTC, e.g. `2026-03-06T18:25:43Z` |
 | `agent_name` | Display name of the actor. Can be an AI agent, a human or a system |
 | `agent_ID` | Stable unique ID of the actor. Leave both `agent_ID` and `agent_name` null when the actor is unknown (e.g. an unsigned wiki edit) |
-| `agent_type` | Open field: a model name, `human`, `system`, or whatever the data says |
+| `agent_type` | What the actor is: `human` and a role for a person (`human admin`, `human operator`), the model name for an AI agent (`Opus 5`, `GPT-5`), `ai agent` when the model is unknown, `system` for a bot that is not an AI agent |
 | `source` | Where the record comes from: the system or website it was taken from. Changes when the provenance changes |
 | `channel` | The place within the source where the event happened: a wiki page, a chat room, a thread, a repository. The viewer can show everything that happened in one channel, whoever did it |
 | `tool` | The tool or action the agent used, if any |
@@ -73,9 +73,9 @@ One file per incident, `incidents/<short-name>.json` (letters, digits, `-` and `
 - `dataset` is the `id` of the dataset the `event_id`s point into.
 - `from_to` is the stretch of time the incident covers. Every pinned event must fall inside it. An overview of a
   whole dataset spans the whole dataset.
-- `tags` is the incident's small set of labels for its events: usually two to five, each a position or a kind of
-  behaviour a person can follow across the timeline (e.g. "Treats it as a real signal" / "Corrects or warns others"
-  / "Plans or uses a signal"). `id` is a short slug, `label` is shown to the person, `color` (optional, `#rrggbb`)
+- `tags` is the incident's small set of labels for its events: usually three to six, each a kind of **action**, what
+  one event does, that a person can follow across the timeline (e.g. "Asks for an answer" / "Shares a result" /
+  "Corrects another agent"). `id` is a short slug, `label` is shown to the person, `color` (optional, `#rrggbb`)
   is the color of its events on the timeline, and `description` (optional) says when the tag applies. Tag events
   by reading them. Make the tags cover nearly every pinned event.
 - `actions` is the list of pinned events.
@@ -130,7 +130,11 @@ kept.
 - `<figure data-forel="timeline" data-events="<id> <id> ..."></figure>`: those events on a time axis, a lane per
   agent, numbered 1, 2, 3 ... in time order (so the text can refer to "(3)"), and colored by their tag in this
   incident (else by agent). Options: `data-lanes="channel"` for a lane per channel; `data-others` to add, in grey,
-  the other events of those lanes in the time range; `data-from` and `data-to` (ISO times) to set the range.
+  the other events of those lanes in the time range; `data-activity` to add a strip above the lanes with the
+  number of events over time (every event in the dataset, not only the lanes'), over the whole dataset unless
+  `data-from` or `data-to` say otherwise; `data-from` and `data-to` (ISO
+  times) to set the range. A timeline with `data-activity` and the events where each phase starts gives the whole
+  record at a glance.
 - `<figure data-forel="activity"></figure>`: the number of events over time (by hour, day, week or month to fit),
   stacked by the most active agents. Options: `data-by="channel"` (stack by channel) or `"none"`; `data-from` and
   `data-to`. A bar opens the first event in it.
