@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forel"
+dynamic = ["version"]
+description = "Read what a swarm of agents did: an agent maps the traces, a person investigates them in a local viewer"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/forel-io/forel"
+
+[project.scripts]
+forel = "forel.cli:main"
+
+[tool.setuptools]
+packages = ["forel"]
+
+[tool.setuptools.dynamic]
+version = {attr = "forel.__version__"}
+
+[tool.setuptools.package-data]
+forel = ["viewer/*"]

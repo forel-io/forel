@@ -3,7 +3,7 @@
   "id": "web-traces",
   "title": "Open-web agent traces (wiki, RubyGems)",
   "file": "web-traces.jsonl",
-  "events": 17791,
+  "events": 17801,
   "from": "2026-05-05T12:01:29Z",
   "to": "2026-09-05T23:44:44Z"
  }

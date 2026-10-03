@@ -1,0 +1,240 @@
+# forel: instructions for the coding agent
+
+A person gave you this file because they have traces of a **swarm of AI agents** on their computer: many agents
+acting in shared places over days or months, such as posts on a wiki, messages in chat rooms, edits, packages,
+emails. Examples are the agents of the AI Village or the signed posts of agents on a public wiki. Your job is to
+turn those traces into something the person can read, and then to investigate with them.
+
+forel is the tool for this. It is a local viewer: a timeline of the swarm's events, the events themselves in full,
+and a **story panel** where you write what you found, with every claim linked to the events behind it. The person
+reads your story, clicks through to the evidence, pins and tags events, writes notes, and asks you follow-up
+questions. You and the viewer write the same files, and the viewer picks up your changes as you make them.
+
+forel is built for swarms. A single coding agent's transcript can be loaded, but that is not what it is for.
+
+The work has six steps:
+
+1. [Install forel and create a workspace](#1-install-forel-and-create-a-workspace)
+2. [Look at the traces](#2-look-at-the-traces)
+3. [Convert them into a dataset](#3-convert-the-traces-into-a-dataset)
+4. [Explore: count with scripts, then read](#4-explore-count-with-scripts-then-read)
+5. [Write the overview story](#5-write-the-overview-story)
+6. [Open the viewer and work with the person](#6-open-the-viewer-and-work-with-the-person)
+
+Keep the person informed as you go: a line or two at the end of each step. Don't ask them questions you can
+answer by looking at the data. Ask when a choice is theirs to make: which traces to include, whether the data can
+leave their machine (it never needs to: forel runs locally), or what they most want to learn, if they haven't said.
+
+The exact file formats are in [docs/format.md](docs/format.md). Read it before step 3.
+
+## 1. Install forel and create a workspace
+
+forel is a Python package with no dependencies (Python 3.9 or later). Install it with whichever of these works:
+
+```bash
+uv tool install git+https://github.com/forel-io/forel
+pipx install git+https://github.com/forel-io/forel
+python3 -m venv ~/.forel && ~/.forel/bin/pip install git+https://github.com/forel-io/forel   # then use ~/.forel/bin/forel
+```
+
+Check it with `forel --version`. Without network access to install, clone or copy the repository and run
+`python3 -m forel` from inside it, in place of `forel`.
+
+Then create a **workspace**, a folder for everything this investigation produces. Put it next to the traces
+unless the person prefers somewhere else, and don't write inside the folder that holds the raw traces:
+
+```bash
+forel init forel-workspace
+```
+
+```
+forel-workspace/
+  data/index.json     the list of datasets (forel index rebuilds it)
+  data/<id>.jsonl     a dataset: the traces as event blocks
+  incidents/          one JSON file per incident; the viewer saves the person's work here
+  scripts/            your conversion and exploration scripts
+```
+
+## 2. Look at the traces
+
+Find out what you have before converting anything:
+
+- Which files there are, their formats, sizes and date ranges.
+- What one record looks like. Print a few from the start, middle and end of each file.
+- What makes up one **event**: a message, a post, an edit, a tool call, an email sent. One event block per thing an
+  agent did or said, or per thing that happened to a place.
+- Where the actors are: a field, a header, a signature in the text, an edit history.
+- Where the places are: rooms, pages, threads, repositories, sites.
+
+## 3. Convert the traces into a dataset
+
+Write `scripts/convert.py`: it reads the raw traces and writes `data/<id>.jsonl`, one event block per line
+([docs/format.md](docs/format.md#dataset-format)). Then run `forel index forel-workspace` and
+`forel check forel-workspace --dataset <id>`.
+
+Keep the script rerunnable. You will rerun it when you find a mistake, and the incidents point at `event_id`s, so
+**derive each `event_id` from the raw data** (a message id, a revision id, or a hash of file, line and timestamp),
+never from a counter that shifts when the input changes.
+
+### Who is the agent?
+
+Getting the actor right matters more than anything else in the conversion: the viewer colors, groups and filters by
+it. How to find it depends on the data, and deciding is your job:
+
+- **The data says it.** In a structured log (the AI Village, a chat export, an API trace) the actor is a field. Map
+  it straight across. There is nothing to interpret.
+- **Only the text says it.** On a shared wiki or forum, agents often sign their posts: `--- Agent42`, `~ClaudeBot`,
+  `Signed: GPT-4o-mini (run 3)`. Write a parser for the signature conventions you find, then measure it: what share
+  of events it identifies, and what the unmatched ones look like. Read a sample of the unmatched ones and extend
+  the parser until what remains is genuinely unsigned. An edit history's username, an email's From line or a
+  commit's author works the same way.
+- **Nothing says it.** Leave `agent_name` and `agent_ID` null. The viewer shows these events as an unknown actor and
+  still places them in their channel. Don't guess an author from writing style.
+- **Several names, one actor.** Merge names (case, typos, a renamed agent) only when the data shows they are the
+  same actor, and keep the rule in the script.
+- **People are actors too.** A human operator, a moderator or a system bot gets its own name and an `agent_type`
+  such as `human` or `system`.
+
+Write down the rule you used and its coverage: "Agent read from the trailing `--- AgentNN` signature: 91% of 12,408
+posts; the rest are unsigned edits, mostly typo fixes". That goes in the overview story (step 5).
+
+### Source and channel
+
+- **`source`** is where the record comes from. Change it when the provenance changes. For example, the agents' own
+  transcripts come from one system, and the effects of their actions are traced on another website: two sources.
+  Most datasets have one or two.
+- **`channel`** is the place within a source where the event happened: a wiki page, a chat room, a thread, a
+  repository, a package. Several wikis of the same kind in one dataset are channels too. Pick the granularity a
+  reader would want to read whole, in order: usually the page or room, not the whole site and not a single
+  paragraph. The channel is never the agent, because the viewer already groups by agent.
+
+Put everything that belongs to one story into one dataset, even if it comes from several sources, so it shares one
+timeline. Use separate datasets only for unrelated records.
+
+### The rest of the event
+
+- `time_stamp`: ISO 8601 in UTC. Convert time zones. If a record has no time, leave the field out: the viewer keeps
+  it after the event before it.
+- `text`: the full text, never truncated. A person will read it.
+- `reasoning`: the agent's private reasoning, if the data has it, kept apart from what it said.
+- `tool`: the tool or action name, if any.
+- Extra fields (a URL, a revision id) are allowed and kept.
+
+The viewer loads a dataset whole into the browser. Up to about 100 MB, or a few hundred thousand events, works.
+Beyond that, split it by period or source, or leave out bulk events nobody will read (heartbeats, automated
+pings), and say what you left out.
+
+## 4. Explore: count with scripts, then read
+
+Scripts are for counting and finding where to look. Understanding what the agents are doing comes from **reading the
+events**. Do both.
+
+**Count:** write scripts in `scripts/` for the shape of the record:
+
+- the time span, events per day, and gaps and bursts;
+- how many agents, events per agent, and when each was active;
+- how many channels and sources, and the busiest channels;
+- the share of events with no known actor.
+
+**Read:** then read a real amount of the record yourself, in full, not just previews. As a guide:
+
+- the first and last few dozen events;
+- for each of the most active agents, a run of consecutive events at two or three points in time;
+- for each of the busiest channels, a stretch in order, as a reader of that page or room would see it;
+- around every burst, gap or oddity the counts turned up;
+- in full, with the events around it, every event you will cite.
+
+Scale the reading to the record: a few hundred events for a small one, more for a large one. Use scripts to filter
+(by agent, channel, time, keyword) and pull out the events to read, then read them. Interpret by reading:
+don't classify events by keyword matching, and don't claim what an agent intended from a count.
+
+While reading, keep notes on what the agents are doing, how they interact, and anything surprising: coordination,
+conflict, deception, agents influencing each other, rules broken or invented, a claim that spread, an agent going
+quiet. These become the leads in step 5.
+
+## 5. Write the overview story
+
+The person's way in is one incident file, `incidents/overview.json`, that covers the whole dataset and tells its
+**story** in cells ([docs/format.md](docs/format.md#story-cells)). Its `from_to` spans the dataset. Write these cells,
+each starting with a heading:
+
+1. **At a glance.** The time period, the number of events, agents (and of which types), sources and channels. When
+   the agents were active, as a chart: events per day, or per agent over time. Add a short table of the most active
+   agents and channels.
+2. **How this dataset was built.** Where the traces came from, how agents were identified and with what coverage,
+   what source and channel mean here, and anything left out or uncertain.
+3. **What the agents are doing.** The main activities, phases and relationships, in plain language, with links to
+   the events that show them. One cell per phase or theme if there are several.
+4. **Worth digging into.** Three to seven leads, from your reading: the interesting phenomena. For each: what
+   happened, why it is interesting, the two to five events that show it (linked), and where to look in the viewer (an
+   agent's tab, a channel, a time range). Say how sure you are.
+
+Rules for the cells:
+
+- **Link every claim** to an event: `<a data-event="<event_id>">14:02</a>` in HTML, or `[14:02](event:<event_id>)`
+  in markdown. Clicking a link opens the event, and hovering shows a preview.
+- **Charts** are inline SVG in an HTML cell. Generate them with a script from the data. Make them interactive the
+  way the viewer allows: any SVG element with `data-event` opens that event, so let a bar or point open a
+  representative event, and add a `<title>` to show a tooltip. Scripts in cells are removed. Use the viewer's color
+  variables (`var(--ink)`, `var(--muted)`, `var(--line)`, `var(--accent)`) so charts work in the light and dark themes.
+- Be concrete and brief. Quote the agents' own words, word for word, where they say it best.
+
+Then **pin** the events the story relies on: 20 to 60 representative events across the leads and themes, as
+`actions`. Give the incident **tags** for the main kinds of activity or positions you found, two to five, and tag
+each pinned event **by reading it**: the tags are your interpretation. Put a `comment` on the five or so events a
+person must read first.
+
+Check it with `forel check forel-workspace overview`, and fix what it reports.
+
+When a lead is big enough to deserve its own timeline, you may also write it as its own incident
+(`incidents/<short-name>.json`, with its own story), and link to it from the overview. Ask the person first if there
+are more than one or two.
+
+## 6. Open the viewer and work with the person
+
+Start the server as a background process that keeps running while you work:
+
+```bash
+forel serve forel-workspace --port 8000
+```
+
+It prints the URL. If port 8000 is taken, it uses the next free one. Open the overview at
+`http://localhost:<port>/?dataset=<id>&incident=overview`:
+
+- In an app with a built-in browser or preview pane (the Claude app, the Codex app), open the URL there.
+- Otherwise run `forel serve` with `--open --path "?dataset=<id>&incident=overview"` to open the default browser,
+  or give the person the URL.
+
+Then tell the person in a few lines what they are looking at:
+
+- The **story** on the right is your overview. Its links open events on the left.
+- The **timeline** at the top shows the pinned events: lanes by agent or by channel, + and − to zoom, and a click
+  on an empty spot opens the event nearest that moment.
+- The **event list** shows events in full. Click an agent's name or a channel to open its tab; **+** searches.
+- They can **pin**, **tag** and **comment** on any event, and **add cells** to the story for their own notes. Their
+  cells are locked, so you can't change them.
+- Everything they do is saved to the workspace as they go.
+
+### The investigation loop
+
+From here, the person reads, clicks around and asks you questions. For each question:
+
+1. **Re-read the incident files first.** The person's pins, tags, comments and notes are there, and they show what
+   they are looking at and what they think.
+2. **Investigate the same way:** scripts to find, reading to understand.
+3. **Answer briefly in chat**, with viewer links to the evidence:
+   `http://localhost:<port>/?dataset=<id>&incident=<incident>&event=<event_id>` opens that incident at that event.
+4. **Record what you found** where the person will see it: a new cell in the story they are reading, or a new
+   incident for a new thread. Short answers can stay in chat.
+
+### Writing incident files while the viewer is open
+
+The viewer saves the person's work to the same files you write, and it merges your changes with theirs. Help it:
+
+- **Read, change, write in one go**, in one short script: load the file, change what you need, write it to a
+  temporary file and rename it over the original. Never write from a copy you read minutes ago.
+- **Change only your own things:** your cells (`"author": "agent"`), pins and tags you added, the name and
+  description. Never edit, unlock, move or delete a **locked** cell (a person's note), and never edit the `view`
+  field (the person's open tabs and zoom). `forel check` fails if a locked cell changed.
+- Give new cells a new unique `id`, such as `c-` and a few random letters.
+- Within a few seconds the viewer shows what you wrote, without a reload.

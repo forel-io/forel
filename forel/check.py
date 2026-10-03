@@ -1,8 +1,8 @@
-"""Check datasets and incident files (see AGENT_PROMPT.md, next to this file).
+"""Check a workspace's datasets and incident files (formats: docs/format.md).
 
-    python3 check_incidents.py                      # every incident file in incidents/
-    python3 check_incidents.py saboteur-egg ...     # just these incidents
-    python3 check_incidents.py --dataset web-traces # a dataset: is it valid event blocks?
+    forel check WORKSPACE                       # every incident file in incidents/
+    forel check WORKSPACE overview ...          # just these incidents
+    forel check WORKSPACE --dataset my-swarm    # a dataset: is it valid event blocks?
 
 For an incident: every event_id exists in its dataset, every pinned event falls inside from_to, every tag an event
 uses is defined in "tags" (one tag per event), and every quoted phrase in a comment appears word for word in that
@@ -12,13 +12,18 @@ locked cell still has the text the viewer last saved for it (incidents/.locked/<
 runs of whitespace, markdown asterisks and curly-vs-straight quote marks.
 For a dataset: it is listed in data/index.json, every event has a unique event_id, and timestamps parse. Events with
 no agent (unknown actor) and the number of channels are counted.
-Exits 1 if any check fails. Works from any directory: paths are relative to this file.
+Exits 1 if any check fails.
 """
 import datetime, glob, json, os, re, sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-DATA, INCIDENTS = os.path.join(HERE, 'data'), os.path.join(HERE, 'incidents')
+DATA, INCIDENTS = 'data', 'incidents'
 _datasets = {}
+
+
+def use_workspace(workspace):
+    global DATA, INCIDENTS
+    DATA, INCIDENTS = os.path.join(workspace, 'data'), os.path.join(workspace, 'incidents')
+    _datasets.clear()
 
 
 def load_events(dataset):
@@ -187,11 +192,14 @@ def check_dataset(dataset):
     return not problems
 
 
-def main():
-    args = sys.argv[1:]
-    if args[:1] == ['--dataset']:
-        sys.exit(0 if all([check_dataset(d) for d in args[1:]]) else 1)
-    paths = [os.path.join(INCIDENTS, n + '.json') for n in args] or sorted(glob.glob(os.path.join(INCIDENTS, '*.json')))
+def main(workspace, names=(), datasets=()):
+    """Returns the exit code: 0 if every check passes."""
+    use_workspace(workspace)
+    if datasets:
+        return 0 if all([check_dataset(d) for d in datasets]) else 1
+    paths = [os.path.join(INCIDENTS, n + '.json') for n in names] or sorted(glob.glob(os.path.join(INCIDENTS, '*.json')))
+    if not paths:
+        print(f'no incident files in {INCIDENTS}')
     failed = 0
     for path in paths:
         inc, problems = check(path)
@@ -206,8 +214,4 @@ def main():
         for p in problems:
             print('       ' + p)
         failed += bool(problems)
-    sys.exit(1 if failed else 0)
-
-
-if __name__ == '__main__':
-    main()
+    return 1 if failed else 0

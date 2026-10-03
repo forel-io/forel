@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Swarm Incident Viewer</title>
+<title>forel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -500,13 +500,15 @@ function indexActions() { actById = new Map((INC?.actions || []).map(a => [Strin
 const actionAt = i => i >= 0 ? actById.get(E[i].event_id) : undefined;
 async function selectIncident(id, focusId) {
   if (storyEditing) finishEdit(true);  // save an open cell edit into the incident it belongs to
-  if (!id) { INC = null; incId = null; indexActions(); setScope('all'); fillSelectors(); renderSide(); renderStory(); setFocus(focus >= 0 ? focus : 0); return; }
+  if (layoutTimer) flushLayout(); layoutSaved = null;  // the layout of the incident being left
+  if (!id) { INC = null; incId = null; incVer = incBase = null; indexActions(); setScope('all'); fillSelectors(); renderSide(); renderStory(); setFocus(focus >= 0 ? focus : 0); return; }
   const meta = incList.find(x => x.id === id);
-  let inc = meta?.local;
-  if (!inc) { const r = await fetch(`incidents/${encodeURIComponent(id)}.json`, { cache: 'no-store' }); if (!r.ok) return alert(`Could not load incident ${id}`); inc = await r.json(); }
-  inc.actions = (inc.actions || []).map(a => ({ ...a, event_id: String(a.event_id), priority: +a.priority || 2, pinned: a.pinned !== false, comment: a.comment || '' }));
-  inc.tags = normTags(inc.tags);
-  INC = inc; incId = id; indexActions(); fillSelectors(); setScope('incident'); renderSide(); renderStory();
+  let inc = meta?.local, ver = null;
+  if (!inc) { const r = await fetch(`incidents/${encodeURIComponent(id)}.json`, { cache: 'no-store' }); if (!r.ok) return alert(`Could not load incident ${id}`); inc = await r.json(); ver = r.headers.get('X-Forel-Version'); }
+  normIncident(inc);
+  INC = inc; incId = id; incVer = ver; incBase = structuredClone(inc); indexActions(); fillSelectors(); setScope('incident'); renderSide(); renderStory();
+  armLayout();
+  if (restoreLayout(inc.view)) { const f = byId.get(String(focusId)); if (f != null && f !== focus) setFocus(f); return; }  // the tabs and timeline as they were left; a linked event is then opened
   let f = byId.get(String(focusId));  // a linked event, else the most important pinned one, else the start of the range
   if (f == null) { const a = sortedActions('priority').find(a => a.pinned); f = a ? byId.get(a.event_id) : Math.min(firstAtOrAfter(scopeRange()[0]), E.length - 1); }
   setFocus(f);
@@ -522,17 +524,91 @@ function changed() {  // an edit to the incident: repaint what depends on it, th
   clearTimeout(saveTimer); status('Saving…'); saveTimer = setTimeout(save, 350);
 }
 function status(s) { $('saveStatus').textContent = s; }
+function normIncident(inc) {
+  inc.actions = (inc.actions || []).map(a => ({ ...a, event_id: String(a.event_id), priority: +a.priority || 2, pinned: a.pinned !== false, comment: a.comment || '' }));
+  inc.tags = normTags(inc.tags);
+  return inc;
+}
+const syncMeta = () => { const meta = incList.find(x => x.id === incId); if (meta) { meta.name = INC.name; meta.actions = INC.actions; meta.from_to = INC.from_to; meta.tags = INC.tags; } };
+// Saving with others writing the same file: an agent edits incident files while the person works in the page.
+// incVer is the file's version (from the server) when this page last loaded or saved it, and incBase the incident as
+// it was then. A save sends incVer; if the file has changed since, the server refuses it and returns the file, which is
+// merged with this page's edits (mergeIncident) and saved again. The page also checks for changed files every few
+// seconds (pollIncidents), so what an agent writes shows up without a reload.
+let incVer = null, incBase = null, saving = false, saveAgain = false;
 async function save() {
   if (!INC) return;
-  INC.updated = new Date().toISOString();
-  const meta = incList.find(x => x.id === incId); if (meta) { meta.name = INC.name; meta.actions = INC.actions; meta.from_to = INC.from_to; meta.tags = INC.tags; }
-  if (!writable) return status('Not saved: open through python3 serve.py');
+  if (saving) { saveAgain = true; return; }  // one save at a time, each from the version the last one left
+  INC.updated = new Date().toISOString(); syncMeta();
+  if (!writable) return status('Not saved: open it through forel serve');
+  saving = true; const id = incId;
   try {
-    const r = await fetch(`incidents/${encodeURIComponent(incId)}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(INC) });
-    if (!r.ok) throw new Error(r.status === 501 ? 'this server cannot save; use python3 serve.py' : `HTTP ${r.status}`);
-    status(`Saved incidents/${incId}.json`);
+    const body = JSON.stringify(INC), headers = { 'Content-Type': 'application/json' };
+    if (incVer) headers['X-Forel-Base'] = incVer;
+    const r = await fetch(`incidents/${encodeURIComponent(id)}.json`, { method: 'PUT', headers, body });
+    if (id !== incId) return;  // another incident was opened meanwhile
+    if (r.status === 409) { if (adoptDisk(await r.json(), r.headers.get('X-Forel-Version'))) saveAgain = true; else status(`Saved incidents/${id}.json`); return; }
+    if (!r.ok) throw new Error(r.status === 501 ? 'this server cannot save; use forel serve' : `HTTP ${r.status}`);
+    incVer = r.headers.get('X-Forel-Version'); incBase = JSON.parse(body);
+    status(`Saved incidents/${id}.json`);
   } catch (e) { status(`NOT saved: ${e.message}`); }
+  finally { saving = false; if (saveAgain) { saveAgain = false; save(); } }
 }
+function adoptDisk(disk, ver) {  // the file changed on disk: merge in this page's edits since incBase; true if any are left to save
+  normIncident(disk);
+  const merged = mergeIncident(incBase || {}, INC, disk);
+  incBase = structuredClone(disk); incVer = ver;
+  INC = merged; syncMeta(); indexActions(); fillSelectors(); computeLanes(); renderSide(); renderStory(); renderTags(); renderDetail(false); draw();
+  return JSON.stringify(merged) !== JSON.stringify(disk);
+}
+// Three-way merge, field by field: what this page changed since base wins, everything else comes from disk. Lists of
+// story cells, pinned events and tags are merged item by item (by id), so an agent's new cell and a person's new pin
+// both survive. A removal on either side removes, unless the other side has edited the item since.
+function mergeIncident(base, mine, disk) {
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b), out = {};
+  const LISTS = { story: 'id', actions: 'event_id', tags: 'id' };
+  for (const k of new Set([...Object.keys(disk), ...Object.keys(mine)])) {
+    const b = base[k], m = mine[k], d = disk[k];
+    const v = LISTS[k] && (Array.isArray(m) || Array.isArray(d)) ? mergeList(Array.isArray(b) ? b : [], Array.isArray(m) ? m : [], Array.isArray(d) ? d : [], LISTS[k]) : same(m, b) ? d : m;
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+function mergeList(base, mine, disk, key) {
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b), id = x => String(x?.[key]);
+  const B = new Map(base.map(x => [id(x), x])), M = new Map(mine.map(x => [id(x), x])), D = new Map(disk.map(x => [id(x), x]));
+  const pick = k => {
+    const b = B.get(k), m = M.get(k), d = D.get(k);
+    if (!b) return m ?? d;                              // new on one side (or both: mine wins)
+    if (!m) return d && !same(d, b) ? d : undefined;    // I removed it: gone, unless the disk changed it
+    if (!d) return !same(m, b) ? m : undefined;         // the disk removed it: gone, unless I changed it
+    return same(m, b) ? d : m;
+  };
+  const order = (a, o) => a.map(id).filter(k => B.has(k) && o.has(k)).join('\n');
+  const reordered = order(mine, D) !== order(base, D);  // I moved items: keep my order, else the disk's
+  const main = reordered ? mine : disk, other = reordered ? disk : mine, out = [], seen = new Set();
+  for (const x of main) { const k = id(x), v = pick(k); if (v !== undefined && !seen.has(k)) { out.push(v); seen.add(k); } }
+  other.forEach((x, n) => {  // the other side's new items, after the item they followed there
+    const k = id(x); if (seen.has(k)) return; const v = pick(k); if (v === undefined) return;
+    let at = out.length; for (let j = n - 1; j >= 0; j--) { const p = out.findIndex(y => id(y) === id(other[j])); if (p >= 0) { at = p + 1; break; } }
+    out.splice(at, 0, v); seen.add(k);
+  });
+  return out;
+}
+async function pollIncidents() {  // files changed or added on disk (an agent at work): show them
+  if (!writable || document.hidden || !DS) return;
+  let vers; try { const r = await fetch('incidents/versions.json', { cache: 'no-store' }); if (!r.ok) return; vers = await r.json(); } catch { return; }
+  if (Object.keys(vers).some(k => !incList.some(x => x.id === k)) || incList.some(x => !x.local && !(x.id in vers))) {
+    await loadIncidentList(); if (INC) syncMeta(); draw();
+  }
+  if (INC && incId && incVer && vers[incId] && vers[incId] !== incVer && !saving) {
+    const id = incId, r = await fetch(`incidents/${encodeURIComponent(id)}.json`, { cache: 'no-store' }); if (!r.ok || id !== incId || saving) return;
+    const ver = r.headers.get('X-Forel-Version'); if (ver === incVer) return;
+    const pending = adoptDisk(await r.json(), ver); status(`Updated from incidents/${id}.json`);
+    if (pending) { clearTimeout(saveTimer); saveTimer = setTimeout(save, 350); }
+  }
+}
+setInterval(pollIncidents, 2500);
 function newIncident() {
   if (storyEditing) finishEdit(true);
   if (!DS) return false;
@@ -540,8 +616,8 @@ function newIncident() {
   let id = slug(name), n = 2; while (incList.some(x => x.id === id)) id = `${slug(name)}-${n++}`;
   const [t0, t1] = viewTimeRange();
   INC = { name: name.trim(), incident_description: '', dataset: DS.id, tags: [], from_to: { from: new Date(t0).toISOString(), to: new Date(t1).toISOString() }, actions: [] };
-  incId = id; incList.push({ id, name: INC.name, dataset: DS.id, from_to: INC.from_to, actions: INC.actions, local: writable ? undefined : INC });
-  indexActions(); fillSelectors(); computeLanes(); renderSide(); renderStory(); draw(); renderDetail(false); save(); updateURL();
+  incId = id; incVer = null; incBase = structuredClone(INC); incList.push({ id, name: INC.name, dataset: DS.id, from_to: INC.from_to, actions: INC.actions, local: writable ? undefined : INC });
+  indexActions(); fillSelectors(); computeLanes(); renderSide(); renderStory(); draw(); renderDetail(false); save(); updateURL(); armLayout();
   return true;
 }
 function ensureIncident() { return INC ? true : newIncident(); }
@@ -863,6 +939,7 @@ const px = x => GUT + (x - view.a) / (view.b - view.a) * (W - GUT - 12);
 const unpx = p => view.a + (p - GUT) / (W - GUT - 12) * (view.b - view.a);
 function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
 function paint() {
+  noteLayout();
   const arr = canArrange(), cv = $('tlCanvas'), LH = laneH(), H = AX + Math.max((lanes.length + arr) * LH, 48) + 8;
   W = cv.clientWidth; const gutW = gutWs[gutKey()]; GUT = gutW ? Math.round(Math.max(90, Math.min(W * .7, gutW))) : laneMode === 'channel' && scope === 'incident' ? Math.min(320, Math.round(Math.max(220, W * .3))) : scope === 'incident' ? 160 : Math.min(300, Math.round(W * .24));
   const dpr = devicePixelRatio || 1;
@@ -1275,7 +1352,7 @@ function updateURL() {
   if (!DS) return;
   const p = new URLSearchParams({ dataset: DS.id }); if (incId) p.set('incident', incId); if (tabChannel()) p.set('channel', tabChannel().key);
   if (focus >= 0) p.set('event', E[focus].event_id);
-  history.replaceState(null, '', '?' + p);
+  history.replaceState(null, '', '?' + p); noteLayout();
 }
 // Tabs over the event list: "All events", plus one per agent or channel (opened from a block's name or channel tag),
 // and search tabs (opened with +).
@@ -1291,7 +1368,7 @@ function renderTabs() {
   $('tabs').innerHTML = tabs.map((t, k) => `<button class="tab${k === tabCur ? ' on' : ''}" data-k="${k}" title="${t.ref ? `${esc(t.ref.name ?? t.ref.key)} · ${t.ref.n.toLocaleString()} events${ctxOn(t.ctx) ? ` (with context: ${ctxLabel(t.ctx)})` : ''}` : 'Every event in the dataset'}">` +
     (t.ref ? `<span class="k">${t.by}</span><span class="nm">${esc(t.ref.name || t.ref.key || 'new')}</span>${t.by === 'view' ? '<span class="ed" title="Edit this view">✎</span>' : ''}<span class="x" title="Close tab">×</span>` : '<span class="nm">All events</span>') + '</button>').join('') +
     '<button class="tab add" id="tabAdd" title="New search tab: a text, channels and agents (More options in it: pins, tags, sources)">+</button>';
-  renderSearchPanel(); renderChannels(); renderCtxCtl();  // the open channel tab's chip is highlighted
+  renderSearchPanel(); renderChannels(); renderCtxCtl(); noteLayout();  // the open channel tab's chip is highlighted
 }
 function saveTab() {
   const t = tabs[tabCur], top = onScreen()[0]; t.focus = focus;
@@ -1490,7 +1567,7 @@ const matchesText = (e, rx) => (e.text && rx.test(e.text)) || (e.reasoning && rx
 // ---------- custom views ----------
 // A view combines parts: the open incident's pinned events, its tags, agents, channels, and text. Within a part, any
 // item counts (any of the checked agents); across parts, match 'all' needs every part, 'any' needs one.
-// Views are saved in this browser (localStorage, per dataset), never in the incident file. A view lives as long as its tab.
+// Views are saved in this browser (localStorage, per dataset), and in the open incident's layout ("view") while a tab shows them. A view lives as long as its tab.
 const newView = () => ({ id: 'v' + Date.now().toString(36), name: '', match: 'all', pins: false, tags: [], agents: [], channels: [], sources: [], text: '' });
 function viewParts(v) {  // the active parts, each a list of event indexes (no index twice within one part)
   const parts = [], acts = (INC?.actions || []).filter(a => a.pinned && byId.has(String(a.event_id)));
@@ -1535,6 +1612,80 @@ function restoreViews() {  // reopen the saved views as tabs, without leaving th
   }
   renderTabs();
 }
+// The incident's saved layout ("view" in the incident file): the open tabs, the open tab and event, and the timeline's
+// scope, lanes and zoom. Saved a moment after it changes; reopening the incident puts it back.
+// {tabs: [{by, key?|tag?|view?|p?, ctx, event?}], cur, event, timeline: {scope, lanes, others, from, to}}
+let layoutTimer, restoringLayout = false, layoutSaved = null;  // layoutSaved: the layout last saved or loaded, as JSON
+function layoutOf() {
+  saveTab();
+  const ev = i => i != null && E[i] ? E[i].event_id : undefined;
+  return {
+    tabs: tabs.map(t => {
+      const s = { by: t.by, ctx: ctxOn(t.ctx) ? t.ctx : undefined, event: ev(t.focus) };
+      if (t.by === 'agent' || t.by === 'channel') s.key = t.base.key;
+      else if (t.by === 'tag') s.tag = t.base.key.slice(t.base.key.indexOf(':') + 1);
+      else if (t.by === 'view') s.view = t.view;
+      else if (t.by === 'search') s.p = { q: t.p.q, agents: t.p.agents.map(a => a.key), chans: t.p.chans.map(c => c.key) };
+      return s;
+    }),
+    cur: tabCur, event: ev(focus),
+    timeline: { scope, lanes: laneMode, others: showOthers || undefined, ...(([a, b]) => ({ from: new Date(a).toISOString(), to: new Date(b).toISOString() }))(viewTimeRange()) },
+  };
+}
+function noteLayout() {  // the layout may have changed: save it into the open incident shortly after
+  if (!INC || restoringLayout || layoutSaved == null) return;
+  clearTimeout(layoutTimer); layoutTimer = setTimeout(flushLayout, 1500);
+}
+function flushLayout() {  // save the layout now if it differs from the one loaded or last saved (just opening an incident saves nothing)
+  clearTimeout(layoutTimer); layoutTimer = null;
+  if (!INC || restoringLayout || layoutSaved == null) return;
+  const l = layoutOf(), j = JSON.stringify(l); if (j === layoutSaved) return;
+  layoutSaved = j; INC.view = l; save();
+}
+function armLayout() { layoutSaved = null; requestAnimationFrame(() => { if (INC) layoutSaved = JSON.stringify(layoutOf()); }); }  // once the incident has opened
+function restoreLayout(l) {  // rebuild the tabs and the timeline from a saved layout; false if there is none
+  if (!l || !Array.isArray(l.tabs)) return false;
+  restoringLayout = true;
+  try {
+    const T = [];
+    for (const s of l.tabs) {
+      const ctx = normCtx(s.ctx), f = byId.get(String(s.event));
+      let t = null;
+      if (s.by === 'all') t = { by: 'all' };
+      else if (s.by === 'agent') { const a = agents.find(x => x.key === s.key); if (a) t = { by: 'agent', base: a }; }
+      else if (s.by === 'channel') { const c = chanByKey.get(s.key); if (c) t = { by: 'channel', base: c }; }
+      else if (s.by === 'tag') {
+        const tg = INC.tags.find(x => x.id === s.tag);
+        const idxs = tg ? INC.actions.filter(a => a.tag === tg.id && a.pinned && byId.has(a.event_id)).map(a => byId.get(a.event_id)).sort((p, q) => p - q) : [];
+        if (idxs.length) t = { by: 'tag', base: { key: `${incId}:${tg.id}`, name: tg.label, idxs, n: idxs.length } };
+      } else if (s.by === 'view' && s.view) { const v = { ...newView(), ...s.view }; t = { by: 'view', view: v, base: viewRef(v) }; }
+      else if (s.by === 'search' && s.p) {
+        const p = { q: s.p.q || '', agents: (s.p.agents || []).map(k => agents.find(a => a.key === k)).filter(Boolean), chans: (s.p.chans || []).map(k => chanByKey.get(k)).filter(Boolean) };
+        t = { by: 'search', p, base: searchRef(p.q.trim(), p.agents, p.chans), q: p.q.trim() || undefined };
+      }
+      if (!t) continue;  // gone from the data
+      if (t.by !== 'all') { t.ctx = ctx; applyCtx(t); }
+      if (f != null) t.focus = f;
+      T.push(t);
+    }
+    if (T[0]?.by !== 'all') T.unshift({ by: 'all' });
+    const cur = Math.max(0, Math.min(T.length - 1, (+l.cur || 0) + (l.tabs[0]?.by === 'all' ? 0 : 1)));
+    tabs = T; tabCur = cur; ctxBy = T[cur].by; rows = []; rowsTab = null;
+    const tl = l.timeline || {};
+    laneMode = tl.lanes === 'channel' ? 'channel' : 'agent'; showOthers = !!tl.others; $('showOthers').checked = showOthers;
+    setScope(tl.scope === 'all' ? 'all' : 'incident');
+    const a = parseT(tl.from), b = parseT(tl.to);
+    if (!isNaN(a) && b > a) { [view.a, view.b] = toX(a, b); if (view.b - view.a < 6 && xmode === 'order') { view.a -= 3; view.b += 3; } }
+    renderTabs(); saveViews();
+    const f = byId.get(String(l.event)) ?? T[cur].focus, kept = { ...view };
+    if (f != null) { focus = -1; setFocus(inTabAt(cur, f) ? f : T[cur].ref?.idxs?.[0] ?? f); }
+    view = kept; draw();  // setFocus may pan to the event; keep the saved zoom
+  } finally { restoringLayout = false; }
+  return true;
+}
+addEventListener('visibilitychange', () => { if (document.hidden && layoutTimer) flushLayout(); });
+const inTabAt = (k, i) => !tabs[k].ref || hasIdx(tabs[k].ref.idxs, i);
+
 // The builder: opened from + (a new view) or a view tab's ✎ (that view).
 let vb = null, vbDeb = 0;  // {k: the tab being edited or null, v: the draft}
 function openBuilder(k, fromSearch) {  // k: a view tab to edit; fromSearch: a search tab to turn into a view (its text, channels and agents carried over)
@@ -2176,8 +2327,8 @@ async function openDataset(id, incident, event, channel) {
   } catch (e) {
     $('side').innerHTML = '<div class="small">No dataset loaded.</div>';
     $('blocks').innerHTML = `<div class="empty drop"><p><b>Drop a dataset here</b> or use <i>Load files…</i></p>
-      <p class="small">A dataset is a JSON file with an <code>events</code> list of event blocks (or JSONL, one block per line). See <code>SPEC.md</code>.</p>
-      <p class="small">To serve the bundled data and save incidents, run <code>python3 serve.py</code>.<br>${esc(e.message)}</p></div>`;
+      <p class="small">A dataset is a JSON file with an <code>events</code> list of event blocks (or JSONL, one block per line). See <code>docs/format.md</code>.</p>
+      <p class="small">To view a workspace and save incidents, run <code>forel serve</code> in it.<br>${esc(e.message)}</p></div>`;
   }
 })();
 </script>

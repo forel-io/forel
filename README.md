@@ -1,22 +1,77 @@
-# Swarm incident viewer
+# forel
 
-A tool for investigating what a swarm of AI agents did. An AI agent reads the raw record first and proposes
-incidents, pinning the events that tell each story. A person then opens an incident, sees the pinned events on a
-timeline, reads each one with the events around it, and pins, prioritises and comments.
+Read what a swarm of agents did.
 
+When many AI agents act in shared places for days or months, posting on wikis, talking in chat rooms, editing
+pages and publishing packages, the record is too large to read. forel splits the work. **Your coding agent** converts
+the traces, reads through them and writes an overview story with every claim linked to its evidence. **You**
+open that story in a local viewer, follow the links, look around the timeline, pin and tag events, take notes and
+ask the agent follow-up questions.
+
+forel is built for swarm traces, such as the [AI Village](https://theaidigest.org/village) record or agents' signed
+posts on a shared wiki. It is not built for a single coding agent's transcript.
+
+## Quick start
+
+Give your coding agent (Claude Code, Codex, ...) this message, with the path to your traces:
+
+> Follow https://raw.githubusercontent.com/forel-io/forel/main/ONBOARDING.md to set up forel on the agent traces in
+> `<path/to/traces>`.
+
+The agent will:
+
+1. install forel and create a workspace next to your traces;
+2. convert the traces into a dataset, deciding how to identify each agent and how to split the record into
+   sources and channels;
+3. explore the data: statistics from scripts, and a good amount of reading of the events themselves;
+4. write an **overview story**: the period, the agents and their activity, what the agents are doing, and the
+   phenomena worth digging into;
+5. start the viewer locally and open it, in the app's browser pane or in your browser.
+
+Then you investigate. Read the story, click through to the events, and ask the agent questions. It adds what it
+finds to the story while you work.
+
+## Using forel directly
+
+```bash
+pip install git+https://github.com/forel-io/forel   # or: uv tool install / pipx install
+forel init my-workspace                             # data/, incidents/, scripts/
+forel index my-workspace                            # list the datasets in data/
+forel check my-workspace --dataset my-swarm         # is the dataset readable?
+forel check my-workspace                            # are the incidents valid?
+forel serve my-workspace --open                     # the viewer, at http://localhost:8000
 ```
-python3 serve.py     # http://localhost:8000; incidents save to incidents/
+
+To see what a finished investigation looks like, clone the repository and open the example workspace: public
+traces that agents left on wikis and RubyGems, with four investigated incidents.
+
+```bash
+git clone https://github.com/forel-io/forel && cd forel
+python3 -m forel serve examples/web-traces --open
 ```
 
-- `index.html` is the whole tool: one page, no build step. `serve.py` serves it and saves incident edits.
-- `incidents/` holds the incident files. `check_incidents.py` checks them, and datasets, against the required formats.
-- `AGENT_PROMPT.md` is the prompt to give an AI agent: what the tool is for and the formats it requires.
-- `SPEC.md` is the build spec, including the event block format every dataset uses.
+Everything stays on your machine. The server listens on localhost only, and incidents are plain JSON files in the
+workspace.
 
-## Datasets
+## The viewer
 
-`data/web-traces.jsonl` holds public traces that LLM agents left on wikis, RubyGems and URL shorteners. The
-incidents in `incidents/` are written against it.
+- **Timeline** (top): the pinned events of the open incident, in lanes by agent or by channel. Zoom with + and −,
+  drag to pan, and click an empty spot to open the event nearest that moment. "Other events" adds the unpinned ones
+  in grey.
+- **Event list** (left): every event in full, with its agent, channel, tool and reasoning. Click an agent or a
+  channel to open its tab, use **+** to search, and use **Context +** to show the events around each one.
+- **Story** (right): the incident's story, in cells that link to events. Add cells for your notes; they are locked
+  so the agent can't change them.
+- On any event: **pin** it, set its **priority**, **tag** it, **comment** on it.
 
-The viewer reads any dataset in the event block format: put the file in `data/` and list it in `data/index.json`,
-or drop it on the page.
+Your edits save to the workspace as you go. The open tabs and timeline settings are saved with each incident, and
+come back when you reopen it.
+
+## Docs
+
+- [ONBOARDING.md](ONBOARDING.md): the instructions your coding agent follows
+- [docs/format.md](docs/format.md): the dataset and incident formats
+
+## License
+
+MIT. See [LICENSE](LICENSE).
