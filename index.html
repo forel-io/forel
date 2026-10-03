@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm Incident Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layers, darkest to lightest (light theme): chrome (toolbars, tab strip) → panel (timeline, sidebar) → bg (the event list).
+   Blue (--accent) marks controls; yellow-orange (--focus) marks where you are: the open event, the active tab. */
+:root {
+  --chrome: #e3e5e9; --panel: #f1f2f4; --bg: #fbfbfc; --field: #ffffff; --ink: #1d2127; --muted: #69707b;
+  --line: #d2d5db; --line2: #c2c6cd; --accent: #2563d9; --focus: #f0a000; --mark: #ffe25a; --mark-current: #ff9d2e;
+  --lane: rgba(20,30,50,.035); --hover: rgba(20,30,50,.06); --blk: 52%; --note: #fff6d6; --note-line: #e2c560;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--sans);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --chrome: #17191c; --panel: #1f2125; --bg: #1a1c1f; --field: #131417; --ink: #d9dce1; --muted: #888e98;
+    --line: #2f3238; --line2: #3d4148; --accent: #5c9af7; --focus: #ffc23d; --lane: rgba(255,255,255,.03); --hover: rgba(255,255,255,.06); --blk: 20%; --note: #3a3220; --note-line: #7a6326; }
+}
+:root[data-theme="dark"] { --chrome: #17191c; --panel: #1f2125; --bg: #1a1c1f; --field: #131417; --ink: #d9dce1; --muted: #888e98;
+  --line: #2f3238; --line2: #3d4148; --accent: #5c9af7; --focus: #ffc23d; --lane: rgba(255,255,255,.03); --hover: rgba(255,255,255,.06); --blk: 20%; --note: #3a3220; --note-line: #7a6326; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-size: 13px; line-height: 1.45; font-variant-numeric: tabular-nums;
+  display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); overflow: hidden; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* ---------- controls: 24px tall, square-ish ---------- */
+header { background: var(--chrome); border-bottom: 1px solid var(--line); padding: 5px 10px; display: flex; flex-wrap: wrap; gap: 5px 14px; align-items: center; }
+.ctl { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.ctl input[type=search], .ctl select, .btn { height: 24px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); }
+.ctl input[type=search] { width: 200px; max-width: 42vw; padding: 0 7px; }
+.ctl select { max-width: 22vw; padding: 0 4px; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; padding: 0 8px; cursor: pointer; white-space: nowrap; }
+.btn:hover, .ctl select:hover { border-color: var(--muted); }
+.btn.on { background: color-mix(in srgb, var(--accent) 16%, var(--field)); border-color: color-mix(in srgb, var(--accent) 60%, var(--line2)); font-weight: 600; position: relative; z-index: 1; }
+.ctl label { display: flex; gap: 4px; align-items: center; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.ctl label.btn { color: var(--ink); }
+input[type=checkbox] { accent-color: var(--accent); margin: 0; }
+.count { color: var(--muted); }
+.small { font-size: 11.5px; color: var(--muted); }
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; margin-left: -1px; }
+.seg .btn:first-child { border-radius: 3px 0 0 3px; margin-left: 0; }
+.seg .btn:last-child { border-radius: 0 3px 3px 0; }
+.seg .btn:hover { position: relative; z-index: 2; }
+#theme { width: 26px; justify-content: center; padding: 0; }
+
+/* ---------- timeline (zoomed out) ---------- */
+#tl { background: var(--panel); border-bottom: 1px solid var(--line); }
+#tlbar { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+#tlRow { display: flex; position: relative; }
+#tlWrap { position: relative; flex: 1; min-width: 0; max-height: 40vh; overflow-y: auto; overflow-x: hidden; padding: 2px 10px 4px; }
+#tagGrip { position: absolute; top: 0; bottom: 0; right: calc(var(--tag-w, 250px) - 4px); width: 7px; z-index: 4; cursor: col-resize; touch-action: none; }
+#tagGrip:hover, #tagGrip.drag { background: linear-gradient(90deg, transparent 2px, var(--focus) 2px, var(--focus) 5px, transparent 5px); }
+#tagPanel.hidden + #tagGrip { display: none; }
+#tagPanel { flex: none; width: var(--tag-w, 250px); max-height: 40vh; overflow-y: auto; border-left: 1px solid var(--line); padding: 6px 6px 6px 8px; font-size: 12px; }
+#split { height: 7px; margin: -4px 0 -3px; position: relative; z-index: 5; cursor: row-resize; touch-action: none; }
+#split::after { content: ''; position: absolute; left: 0; right: 0; top: 3px; height: 1px; }
+#split:hover::after, #split.drag::after { top: 2px; height: 3px; background: var(--focus); }
+#tagPanel h3 { margin: 0 0 4px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.trow { display: flex; align-items: center; gap: 7px; padding: 2px 5px; border-radius: 3px; cursor: default; border: 1px solid transparent; }
+.trow[data-k], .trow .x { cursor: pointer; }
+.trow:hover { background: var(--hover); }
+.trow.on { border-color: var(--focus); background: color-mix(in srgb, var(--focus) 12%, transparent); font-weight: 600; }
+.trow .sw { width: 11px; height: 11px; border-radius: 50%; cursor: pointer; border: 0; }
+.trow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trow .n, .trow kbd { color: var(--muted); font-size: 11px; }
+.trow .x { visibility: hidden; color: var(--muted); padding: 0 3px; border-radius: 3px; }
+.trow:hover .x { visibility: visible; } .trow .x:hover { background: var(--line); color: var(--ink); }
+.trow.none { cursor: default; color: var(--muted); }
+#tagAdd { margin: 4px 0 0 1px; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 5px; font: inherit; font-size: 12px; }
+.tagpill { padding: 0 6px; border-radius: 2px; background: var(--tc); color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; line-height: 17px; }
+@media (max-width: 860px) { #tlRow { flex-direction: column; } #tagPanel { width: auto; border-left: 0; border-top: 1px solid var(--line); } #tagGrip { display: none; } }
+#tlCanvas { display: block; width: 100%; cursor: crosshair; }
+#laneAdd { position: fixed; z-index: 30; width: 300px; max-height: 340px; display: flex; flex-direction: column; background: var(--panel);
+  border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 5px; font-size: 12px; }
+#laneAdd input { height: 24px; padding: 0 7px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); margin-bottom: 4px; }
+#laneAdd .list { overflow-y: auto; }
+#laneAdd .it { display: flex; gap: 6px; padding: 2px 6px; border-radius: 3px; cursor: pointer; }
+#laneAdd .it:hover, #laneAdd .it.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+#laneAdd .it .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#laneAdd .it .n { color: var(--muted); }
+#tip { position: fixed; z-index: 20; pointer-events: none; max-width: 380px; padding: 5px 8px; border-radius: 3px; border: 1px solid var(--line2);
+  background: var(--panel); color: var(--ink); font-size: 12px; line-height: 1.4; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+#tip b { font-weight: 600; }
+
+/* ---------- main: sidebar + event list (zoomed in) ---------- */
+/* The sidebar (#side: incidents, search results, channels, agents, keys) is hidden: the event list takes the whole width.
+   Its code still renders into it, so it can come back by removing the display: none below. */
+main { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; }
+#side { display: none !important; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); overflow: auto; } aside, #detail { overflow: visible !important; } }
+aside { overflow: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 0 0 12px; }
+aside h2 { position: sticky; top: 0; z-index: 1; font-size: 11.5px; font-weight: 600; color: var(--ink); margin: 0; padding: 5px 10px; background: var(--chrome);
+  border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: flex; gap: 6px; align-items: baseline; }
+aside h2:first-child { border-top: 0; }
+aside h2 .small { font-weight: 400; }
+aside h2 a { margin-left: auto; font-weight: 400; cursor: pointer; }
+aside > :not(h2) { margin-left: 8px; margin-right: 8px; }
+aside > div.small, #hitBox > .small { padding: 6px 2px; }
+aside h2 + * { margin-top: 6px; }
+aside > :not(h2) + h2 { margin-top: 10px; }
+.inc-card { display: block; width: calc(100% - 16px); text-align: left; margin: 4px 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); cursor: pointer; }
+.inc-card:hover { border-color: var(--accent); }
+.inc-card b { display: block; font-weight: 600; }
+
+.legend { display: flex; flex-direction: column; gap: 0; }
+.chip { display: flex; align-items: center; gap: 7px; padding: 2px 5px; border-radius: 3px; cursor: pointer; border: 1px solid transparent; user-select: none; }
+.chip:hover { background: var(--hover); }
+.chip.off { opacity: .35; }
+.chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sw { width: 11px; height: 11px; border-radius: 2px; flex: none; border: 1px solid rgba(0,0,0,.18); }
+.chip .n { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.chip.cur { border-color: var(--focus); background: color-mix(in srgb, var(--focus) 12%, transparent); }
+#chFilter { width: calc(100% - 16px); height: 24px; padding: 0 7px; margin-bottom: 4px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); }
+
+.pb { display: inline-block; min-width: 22px; text-align: center; padding: 0 4px; border-radius: 2px; background: var(--ink); color: var(--bg); font-size: 10.5px; font-weight: 600; line-height: 17px; }
+.pb.p2 { opacity: .78; } .pb.p3 { opacity: .58; } .pb.p4 { opacity: .42; }
+
+#detail { overflow: auto; min-width: 0; overflow-anchor: none; background: var(--bg); }
+.row:first-child > .gap { display: none; }
+#dbar { position: sticky; top: 0; z-index: 3; background: var(--panel); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 0 14px; align-items: center; }
+#dbar > .ctl { padding: 4px 0 4px 10px; }
+#blocks { padding: 8px 14px 40vh; max-width: 980px; }
+.empty { color: var(--muted); padding: 40px 10px; text-align: center; }
+.drop { border: 1px dashed var(--line2); border-radius: 4px; padding: 36px 16px; margin: 16px; }
+.gap { text-align: center; color: var(--muted); font-size: 11px; margin: 1px 0; }
+
+/* Tabs: flush rectangles in a strip; the active one takes the list's background and a --focus bar on top. */
+#tabs { flex: 1 0 100%; display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; background: var(--chrome); border-bottom: 1px solid var(--line); }
+.tab { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 34ch; height: 30px; padding: 0 8px 0 12px; border: 0; border-right: 1px solid var(--line);
+  border-radius: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 12.5px; position: relative; margin-bottom: -1px; }
+.tab:hover { color: var(--ink); background: var(--hover); }
+.tab .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab .k { font-size: 11px; color: var(--muted); }
+.tab.on { color: var(--ink); background: var(--panel); box-shadow: inset 0 2px 0 var(--focus); border-bottom: 1px solid var(--panel); }
+.tab .x { width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 3px; color: var(--muted); visibility: hidden; }
+.tab.on .x, .tab:hover .x { visibility: visible; }
+.tab .x:hover { background: var(--line); color: var(--ink); }
+.tab.add { color: var(--muted); padding: 0 12px; font-size: 15px; }
+/* A search tab's parameters, above its results; the header collapses them to one line. */
+#sp { flex: 1 0 100%; border-bottom: 1px solid var(--line); padding: 3px 10px 6px; }
+.sph { display: flex; align-items: baseline; gap: 10px; width: 100%; border: 0; background: none; padding: 2px 0; cursor: pointer; text-align: left; }
+.sph b { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.sph .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#sp.shut { padding-bottom: 3px; }
+#sp.shut #spBody { display: none; }
+#spBody { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: center; margin-top: 3px; }
+#spBody > label { font-size: 12px; color: var(--muted); }
+#spQ, .cin { width: 100%; padding: 1px 6px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); min-height: 26px; }
+.cin { position: relative; display: flex; flex-wrap: wrap; gap: 3px; align-items: center; cursor: text; }
+.cin:focus-within, #spQ:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.cin input { flex: 1; min-width: 12ch; border: 0; outline: 0; background: none; padding: 1px 2px; }
+.cin .chips { display: contents; }
+.sfc { display: inline-flex; gap: 3px; align-items: center; padding: 0 2px 0 6px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 14%, var(--field)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); font-size: 12px; max-width: 30ch; line-height: 18px; }
+.sfc .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfc .x { cursor: pointer; padding: 0 4px; border-radius: 2px; color: var(--muted); } .sfc .x:hover { background: var(--line); color: var(--ink); }
+.sug { position: absolute; z-index: 10; top: calc(100% + 2px); left: -1px; right: -1px; max-height: 40vh; overflow-y: auto; padding: 3px; border: 1px solid var(--line2); border-radius: 3px; background: var(--panel); box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+.nti { display: flex; align-items: center; gap: 8px; padding: 2px 6px; border-radius: 2px; cursor: pointer; font-size: 12px; }
+.nti.sel, .nti:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.nti .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nti .n { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+/* Tag menu (the tag button on an event) */
+#tagMenu { position: fixed; z-index: 15; min-width: 170px; max-height: 50vh; overflow-y: auto; padding: 3px; border: 1px solid var(--line2); border-radius: 4px; background: var(--panel); box-shadow: 0 8px 24px rgba(0,0,0,.22); font-size: 12px; }
+#tagMenu .tm { display: flex; align-items: center; gap: 7px; width: 100%; padding: 3px 6px; border: 0; border-radius: 3px; background: none; color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+#tagMenu .tm:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+#tagMenu .tm.on { font-weight: 600; }
+#tagMenu .tm .sw { width: 10px; height: 10px; border-radius: 50%; border: 0; }
+#tagMenu .tm .ck { margin-left: auto; color: var(--muted); }
+#tagMenu .tm.add { color: var(--accent); }
+/* Pop-ups: the custom view builder and the context box */
+.modalBack { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.35); }
+.modalBack.hidden { display: none; }
+.modal { display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(85vh, 760px); border: 1px solid var(--line2); border-radius: 6px; background: var(--panel); color: var(--ink); box-shadow: 0 12px 40px rgba(0,0,0,.3); font-size: 12.5px; }
+.modal.cxm { width: min(520px, 100%); }
+.vbhead { display: flex; align-items: center; padding: 8px 10px 7px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.vbhead b { font-weight: 600; }
+.vbx { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 19px; line-height: 1; padding: 0 6px; border-radius: 3px; cursor: pointer; }
+.vbx:hover { background: var(--line); color: var(--ink); }
+.vbbody { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 12px; }
+.vbtop { display: flex; gap: 8px; align-items: center; }
+.vbtop #vbName { flex: 1; min-width: 0; }
+.vbsec { margin-top: 10px; }
+.vbsec:empty { display: none; }
+.vbh { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.vbh b { font-weight: 600; font-size: 12px; }
+.modal input[type=text], .modal input[type=search], .modal input[type=number] { height: 24px; padding: 0 7px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); color: var(--ink); }
+.vbh input[type=search] { width: 140px; } #vbText { width: 100%; }
+.lnk { border: 0; background: none; padding: 0 2px; color: var(--accent); cursor: pointer; font: inherit; font-size: 12px; }
+.vbl { display: flex; flex-wrap: wrap; gap: 4px; max-height: 128px; overflow-y: auto; }
+.vbc { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 5px; border: 1px solid var(--line2); border-radius: 3px; background: var(--field); cursor: pointer; white-space: nowrap; line-height: 20px; }
+.vbc:has(input:checked) { border-color: color-mix(in srgb, var(--accent) 60%, var(--line2)); background: color-mix(in srgb, var(--accent) 14%, var(--field)); font-weight: 600; }
+.vbc .n { color: var(--muted); font-size: 11px; font-weight: 400; }
+.vbc .sw { width: 10px; height: 10px; border-radius: 50%; border: 0; }
+.vbfoot { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 8px 14px; border-top: 1px solid var(--line); }
+.vbfoot .count { margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#vbOpen:disabled { opacity: .45; cursor: default; }
+#cxBefore, #cxAfter { width: 64px; margin-left: 4px; }
+.cxm .vbh label { display: inline-flex; align-items: center; }
+.tab .ed { width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 3px; color: var(--muted); visibility: hidden; }
+.tab.on .ed, .tab:hover .ed { visibility: visible; }
+.tab .ed:hover { background: var(--line); color: var(--ink); }
+#ctxBtn { max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blk.ctxev { opacity: .5; }
+.blk.ctxev:hover, .blk.ctxev.focus { opacity: 1; }
+
+/* Event blocks: the agent's color, mixed into the background (strongly in light, softly in dark). */
+.blk { position: relative; margin: 4px 0; border-radius: 4px; padding: 6px 11px 8px; color: var(--ink);
+  background: color-mix(in srgb, var(--c) var(--blk), var(--bg)); border: 1px solid color-mix(in srgb, var(--c) calc(var(--blk) + 25%), var(--bg)); }
+.blk.ctx { cursor: pointer; opacity: .82; }
+.blk.ctx:hover { opacity: 1; }
+.blk.focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.meta { display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; font-size: 11.5px; color: color-mix(in srgb, var(--ink) 72%, transparent); margin-bottom: 3px; }
+.who { font-weight: 600; font-size: 13px; color: var(--ink); cursor: pointer; }
+.who:hover, .tag.chan:hover { text-decoration: underline; }
+.tag { padding: 0 5px; border-radius: 2px; background: color-mix(in srgb, var(--bg) 55%, transparent); font-size: 11px; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 17px; }
+.tag.tool { font-family: var(--mono); font-size: 10.5px; }
+.tag.chan { border: 0; cursor: pointer; color: inherit; font: inherit; font-size: 11px; }
+.tag.chan:hover { background: var(--bg); }
+.meta .sp { margin-left: auto; }
+.tools { display: inline-flex; gap: 1px; align-items: center; }
+.tools button { border: 1px solid transparent; background: none; cursor: pointer; padding: 0 5px; border-radius: 2px; font-size: 11.5px; color: var(--ink); line-height: 17px; }
+.tools button:hover { border-color: color-mix(in srgb, var(--ink) 35%, transparent); }
+.tools .pr.on { background: var(--ink); color: var(--bg); font-weight: 600; }
+.tools .pin, .tools .cm, .tools .tg { padding: 1px 3px; color: color-mix(in srgb, var(--ink) 45%, transparent); }
+.tools .pin:hover, .tools .cm:hover, .tools .pin.on, .tools .cm.on, .tools .tg:hover, .tools .tg.on { color: var(--ink); }
+.tools .tg .ic { transform: scaleX(-1); fill-rule: evenodd; }  /* points up and right, like the pin; the hole stays open when filled */
+.tools .tg.on > .ic { fill: var(--tc); }  /* filled with the tag's color */
+/* Flat line icons (16px grid) in the text color; filled when on: a pinned event, an event with a comment. */
+.ic { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.on > .ic { fill: currentColor; }
+.ic.inl { display: inline-block; width: 13px; height: 13px; vertical-align: -2px; }
+.comment { margin: 2px 0 6px; padding: 4px 8px; border-radius: 3px; background: var(--note); border: 1px solid var(--note-line); font-size: 12.5px; white-space: pre-wrap; word-break: break-word; cursor: text; }
+.comment textarea { width: 100%; min-height: 60px; border: 0; outline: 0; background: transparent; resize: vertical; color: var(--ink); }
+.text { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; }
+.text code, .cot code { font-family: var(--mono); background: color-mix(in srgb, var(--bg) 60%, transparent); padding: 0 3px; border-radius: 2px; font-size: 12px; }
+.text pre { font-family: var(--mono); font-size: 12px; background: color-mix(in srgb, var(--bg) 60%, transparent); padding: 5px 8px; border-radius: 3px; overflow-x: auto; white-space: pre; margin: 4px 0; }
+.blk.ctx .text { max-height: 4.5em; overflow: hidden; }
+.blk.ctx .cot .body { max-height: 2.9em; overflow: hidden; }
+details.cot { margin: 0 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 40%, transparent); border-left: 2px solid color-mix(in srgb, var(--c) 70%, var(--ink)); padding: 3px 9px 5px; }
+details.cot summary { cursor: pointer; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+details.cot .body { white-space: pre-wrap; word-break: break-word; font-size: 12.5px; font-style: italic; color: color-mix(in srgb, var(--ink) 85%, transparent); margin-top: 3px; }
+/* Long blocks scroll inside themselves, so the events before and after stay on screen. */
+.blk.focus .cot .body { max-height: 20vh; overflow: auto; }
+.blk.focus .text { max-height: 26vh; overflow: auto; }
+
+.hit { display: block; width: 100%; text-align: left; margin: 2px 0; padding: 3px 7px; border-radius: 3px; cursor: pointer; border: 1px solid var(--line); border-left: 3px solid var(--c); background: var(--bg); font-size: 12px; }
+.hit:hover { border-color: var(--muted); border-left-color: var(--c); }
+.hit.cur { outline: 2px solid var(--mark-current); }
+mark { background: var(--mark); color: #1d2127; padding: 0 1px; border-radius: 2px; }
+.hidden { display: none !important; }
+kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line2); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--field); }
+/* ---------- story: the incident's own write-up (HTML), on the right; its event links open events on the left ---------- */
+body.has-story { grid-template-columns: minmax(0, 1fr) var(--story-w, 440px); }
+body.has-story > :not(#story, header) { grid-column: 1; }
+body.has-story > header { grid-column: 1 / -1; }
+#story { grid-column: 2; grid-row: 2 / -1; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); border-left: 1px solid var(--line); }
+#storyBar { display: flex; gap: 6px; align-items: center; padding: 4px 8px 4px 10px; background: var(--chrome); border-bottom: 1px solid var(--line); }
+#storyBar b { font-size: 11.5px; font-weight: 600; }
+#storyBar .sp { margin-left: auto; }
+#storyBody { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px 30vh; }
+#evTip { position: fixed; z-index: 25; pointer-events: none; width: max-content; max-width: 360px; padding: 6px 9px 7px; border-radius: 4px; border: 1px solid var(--line2);
+  background: var(--panel); color: var(--ink); font-size: 12px; line-height: 1.4; box-shadow: 0 6px 18px rgba(0,0,0,.22); }
+#evTip .h { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; } #evTip .h b { font-weight: 600; font-size: 12.5px; }
+#evTip .c { font-family: var(--mono); font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+#evTip .s { color: var(--muted); font-size: 11px; margin: 1px 0 4px; }
+#evTip .tg { padding: 0 5px; border-radius: 2px; background: var(--tc); color: #fff; font-weight: 600; }
+#evTip .m { white-space: pre-wrap; overflow-wrap: anywhere; }
+#storyGrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 7px; z-index: 4; cursor: col-resize; touch-action: none; }
+#storyGrip:hover, #storyGrip.drag { background: linear-gradient(90deg, transparent 2px, var(--focus) 2px, var(--focus) 5px, transparent 5px); }
+@media (max-width: 860px) { body.has-story { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 45vh); }
+  body.has-story > #story { grid-column: 1; grid-row: 5; border-left: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
+::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--line2); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<header>
+  <div class="ctl">
+    <select id="dsSel" title="Dataset"></select>
+    <select id="incSel" title="Incident"></select>
+    <label class="btn" title="Load a dataset (JSON with an &quot;events&quot; list, or JSONL of event blocks) or an incident file">Load files…<input id="file" type="file" accept=".json,.jsonl,application/json" multiple hidden></label>
+  </div>
+  <div class="ctl">
+    <input id="search" type="search" placeholder="Search events">
+    <span id="hitNav" class="hidden"><button class="btn" id="prev" title="Previous match (k)">↑</button><button class="btn" id="next" title="Next match (j)">↓</button></span>
+    <label title="Search only the part of the timeline that is on screen"><input type="checkbox" id="inView"> in view only</label>
+    <span class="count" id="searchCount"></span>
+  </div>
+  <div class="ctl" style="margin-left:auto">
+    <span class="small" id="saveStatus"></span>
+    <button class="btn hidden" id="storyBtn" title="Show or hide the incident's story">Story</button>
+    <button class="btn" id="theme" title="Toggle light/dark">◐</button>
+  </div>
+</header>
+
+<section id="tl">
+  <div id="tlbar">
+    <div class="ctl">
+      <select id="scopeSel" title="What the timeline shows"></select>
+      <span class="seg" id="laneSeg" title="Lanes: a line per agent, or a line per channel">
+        <button class="btn on" id="laneAgent">by agent</button><button class="btn" id="laneChannel">by channel</button>
+      </span>
+      <label id="othersLbl"><input type="checkbox" id="showOthers"> <span id="othersTxt">other events</span></label>
+      <span class="seg"><button class="btn" id="zOut" title="Zoom out">−</button><button class="btn" id="zIn" title="Zoom in">+</button><button class="btn" id="zFit" title="Fit the whole scope">Fit</button></span>
+    </div>
+    <span class="small" id="tlInfo"></span>
+  </div>
+  <div id="tlRow">
+    <div id="tlWrap"><canvas id="tlCanvas" height="40"></canvas></div>
+    <div id="tagPanel" class="hidden"></div><div id="tagGrip" title="Drag to resize the tags panel; double-click to reset"></div>
+  </div>
+  <div id="laneAdd" class="hidden"><input type="search" placeholder="Filter…"><div class="list"></div></div>
+</section>
+<div id="split" title="Drag to resize the timeline; double-click to reset"></div>
+
+<main>
+  <aside id="side"><div class="small">Loading…</div></aside>
+  <section id="detail">
+    <div id="dbar" class="hidden">
+      <div id="tabs"></div>
+      <div id="sp" class="hidden">
+        <button class="sph" id="spHead" title="Show or hide the search parameters"><b id="spArrow">▾ Search</b><span class="small" id="spSum"></span></button>
+        <div id="spBody">
+          <label for="spQ">Text</label><input id="spQ" type="search" placeholder="Words in the text, reasoning or tool (empty: any)" autocomplete="off">
+          <label>Channels</label><div class="cin" data-kind="chans"><span class="chips"></span><input placeholder="Any channel (type to add)" autocomplete="off"><div class="sug hidden"></div></div>
+          <label>Agents</label><div class="cin" data-kind="agents"><span class="chips"></span><input placeholder="Any agent (type to add)" autocomplete="off"><div class="sug hidden"></div></div>
+          <span></span><div><button class="lnk" id="spMore" title="Open this search in the custom view builder: add pinned events, tags, sources, or match any instead of all">More options: pins, tags, sources, match any…</button></div>
+        </div>
+      </div>
+      <div id="vbBack" class="modalBack hidden"><div id="vb" class="modal" role="dialog" aria-modal="true" aria-labelledby="vbTitle">
+        <div class="vbhead"><b id="vbTitle">Custom view</b><button class="vbx" id="vbClose" title="Close (Esc)">×</button></div>
+        <div class="vbbody">
+        <div class="vbtop"><input id="vbName" type="text" placeholder="View name (optional)" autocomplete="off">
+          <span class="seg" title="All: an event must match every part you picked. Any: matching one part is enough."><button class="btn" data-m="all">match all</button><button class="btn" data-m="any">match any</button></span></div>
+        <div class="vbsec" id="vbInc"></div>
+        <div class="vbsec"><div class="vbh"><b>Agents</b><input id="vbAgQ" type="search" placeholder="Filter" autocomplete="off"><button class="lnk" data-sel="agents" title="Select every agent listed">select all</button><button class="lnk" data-unsel="agents">deselect all</button></div><div class="vbl" id="vbAgents"></div></div>
+        <div class="vbsec"><div class="vbh"><b>Channels</b><input id="vbChQ" type="search" placeholder="Filter" autocomplete="off"><button class="lnk" data-sel="channels" title="Select every channel listed">select all</button><button class="lnk" data-unsel="channels">deselect all</button></div><div class="vbl" id="vbChannels"></div></div>
+        <div class="vbsec"><div class="vbh"><b>Sources</b><input id="vbSrcQ" type="search" placeholder="Filter" autocomplete="off"><button class="lnk" data-sel="sources" title="Select every source listed">select all</button><button class="lnk" data-unsel="sources">deselect all</button></div><div class="vbl" id="vbSources"></div></div>
+        <div class="vbsec"><div class="vbh"><b>Text</b></div><input id="vbText" type="search" placeholder="Words in the event's text, reasoning or tool" autocomplete="off"></div>
+        </div>
+        <div class="vbfoot"><span class="count" id="vbCount"></span><button class="btn" id="vbCancel">Cancel</button><button class="btn on" id="vbOpen">Open view</button></div>
+      </div></div>
+      <div id="cxBack" class="modalBack hidden"><div class="modal cxm" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+        <div class="vbhead"><b id="cxTitle">Add context</b><button class="vbx" id="cxClose" title="Close (Esc)">×</button></div>
+        <div class="vbbody">
+          <div class="vbh"><label>Events before <input id="cxBefore" type="number" min="0" max="500" step="1"></label><label>after <input id="cxAfter" type="number" min="0" max="500" step="1"></label></div>
+          <div class="vbsec"><div class="vbh"><b>From</b><span class="seg"><button class="btn" data-from="channel" title="Neighbours in the same channel as each event">same channel</button><button class="btn" data-from="agent" title="The same agent's events just before and after">same agent</button><button class="btn" data-from="any" title="Whatever happened just before and after, anywhere">anywhere</button></span></div></div>
+        </div>
+        <div class="vbfoot"><span class="count" id="cxCount"></span><button class="btn" id="cxRemove">Remove context</button><button class="btn" id="cxCancel">Cancel</button><button class="btn on" id="cxApply">Apply</button></div>
+      </div></div>
+      <div class="ctl">
+        <span class="seg"><button class="btn" id="evPrev" title="Previous event (←)">◀</button><button class="btn" id="evNext" title="Next event (→)">▶</button></span>
+        <span class="small" id="pos"></span>
+      </div>
+      <div class="ctl"><label title="Open the reasoning on every event (click a reasoning header to open or close just that one)"><input type="checkbox" id="showCot"> reasoning open</label></div>
+      <div class="ctl" id="ctxCtl"><button class="btn" id="ctxBtn" title="Add the events just before and after each event in this tab (shown faded)">Context +</button><button class="btn hidden" id="ctxClear" title="Remove the context">×</button></div>
+    </div>
+    <div id="blocks"><div class="empty drop" id="drop"><p><b>Loading dataset…</b></p></div></div>
+  </section>
+</main>
+<section id="story" class="hidden">
+  <div id="storyGrip" title="Drag to resize the story; double-click to reset"></div>
+  <div id="storyBar"><b>Story</b><span class="small" id="storyInfo"></span><span class="sp"></span>
+    <button class="btn" id="storyFold" title="Collapse or expand every cell">Collapse all</button>
+    <button class="btn" id="storyAdd" title="Add a cell at the end (markdown, written by you)">+ Cell</button></div>
+  <div id="storyBody"></div>
+</section>
+<div id="tip" class="hidden"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MAX_HITS_SHOWN = 200;
+
+// ---------- state ----------
+let datasets = [], DS = null, E = [];           // E = event blocks of the current dataset, sorted by time
+let agents = [], byId = new Map();              // agents: [{key, name, type, n, idxs, hue, bg}]
+let incList = [], INC = null, incId = null, actById = new Map();
+let focus = -1, ctxBy = 'all';                    // ctxBy: what the event list (its open tab) follows: 'all', 'agent' or 'channel'
+let channels = [], chanByKey = new Map(), chFilter = '';  // channels: [{key, n, idxs, agents}]
+let scope = 'all', xmode = 'time', view = { a: 0, b: 1 }, lanes = [], laneOf = new Map();
+let hidden = new Set(), hits = [], hitCur = -1, showOthers = false;
+const writable = location.protocol.startsWith('http');
+
+// ---------- helpers ----------
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function md(s) {  // tiny, safe markdown: code blocks, inline code, bold, italics
+  const parts = esc(s).split(/```/);
+  return parts.map((p, i) => i % 2 ? `<pre>${p.replace(/^[a-z]*\n/, '')}</pre>` :
+    p.replace(/`([^`\n]+)`/g, '<code>$1</code>')
+     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+     .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<i>$2</i>')).join('');
+}
+const pad = n => String(n).padStart(2, '0');
+function fmtT(ms, secs = true) {  // UTC
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${secs ? ':' + pad(d.getUTCSeconds()) : ''}`;
+}
+function parseT(s) {
+  if (s == null || s === '') return NaN;
+  if (typeof s === 'number') return s < 1e11 ? s * 1000 : s;
+  s = String(s).trim().replace(' ', 'T');
+  return Date.parse(/([zZ]|[+-]\d\d:?\d\d)$/.test(s) ? s : s + 'Z');  // no zone given: read as UTC
+}
+function span(ms) {
+  const s = Math.abs(ms) / 1000;
+  if (s < 90) return `${Math.round(s)} s`; if (s < 5400) return `${Math.round(s / 60)} min`;
+  if (s < 129600) return `${(s / 3600).toFixed(1)} h`; return `${Math.round(s / 86400)} days`;
+}
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'incident';
+const snip = (s, n = 90) => { s = String(s ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+const X = i => xmode === 'time' ? E[i]._t : i;
+// first position in a sorted index list whose X value is >= x
+function lower(idxs, x) { let lo = 0, hi = idxs.length; while (lo < hi) { const m = (lo + hi) >> 1; X(idxs[m]) < x ? lo = m + 1 : hi = m; } return lo; }
+function firstAtOrAfter(t) { let lo = 0, hi = E.length; while (lo < hi) { const m = (lo + hi) >> 1; E[m]._t < t ? lo = m + 1 : hi = m; } return lo; }
+
+// ---------- datasets ----------
+function parseEvents(text, fileName) {  // {events:[...]}, a bare array, or JSONL
+  let raw;
+  try { raw = JSON.parse(text); }
+  catch { raw = text.split('\n').filter(l => l.trim()).map(l => JSON.parse(l)); }
+  if (raw && !Array.isArray(raw) && Array.isArray(raw.actions)) return { incident: raw };
+  const events = Array.isArray(raw) ? raw : raw.events;
+  if (!Array.isArray(events)) throw new Error('expected an "events" list of event blocks, or an incident with "actions"');
+  const id = raw.dataset || slug((fileName || 'dataset').replace(/\.[a-z]+$/i, ''));
+  return { id, title: raw.title || id, events };
+}
+function setDataset(id, title, events) {
+  DS = { id, title };
+  let last = 0;
+  events.forEach((e, i) => { let t = parseT(e.time_stamp); if (isNaN(t)) t = last; last = t; e._t = t; e._o = i; });
+  events.sort((a, b) => a._t - b._t || a._o - b._o);
+  E = events; byId = new Map(); chanByKey = new Map(); chFilter = ''; const am = new Map();
+  E.forEach((e, i) => {
+    e._i = i; e.event_id = String(e.event_id ?? e._o); byId.set(e.event_id, i);
+    const key = String(e.agent_ID ?? e.agent_name ?? '(unknown)');
+    let a = am.get(key);
+    if (!a) am.set(key, a = { key, name: String(e.agent_name ?? e.agent_ID ?? '(unknown)'), type: e.agent_type || '', n: 0, cot: 0, idxs: [] });
+    a.n++; if (e.reasoning) a.cot++; a.idxs.push(i); e._a = a;
+    e._c = null;
+    if (e.channel != null && e.channel !== '') {
+      const ck = String(e.channel); let c = chanByKey.get(ck);
+      if (!c) chanByKey.set(ck, c = { key: ck, n: 0, idxs: [], agents: new Set() });
+      c.n++; c.idxs.push(i); c.agents.add(a); e._c = c;
+    }
+  });
+  channels = [...chanByKey.values()].sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
+  // Colors follow the agent, not its position on screen: fixed per dataset by overall rank, golden-angle hues.
+  agents = [...am.values()].sort((a, b) => b.n - a.n);
+  agents.forEach((a, i) => { a.hue = Math.round((i * 137.508 + 20) % 360); a.alt = i % 2; a.bg = `hsl(${a.hue} 62% ${a.alt ? 76 : 83}%)`; });
+  // Mostly-empty time ranges (bursts of activity months apart) read better with one step per event.
+  const bins = new Set(), t0 = E[0]?._t ?? 0, w = ((E[E.length - 1]?._t ?? 0) - t0) / 200 || 1;
+  for (const e of E) bins.add(Math.min(199, Math.floor((e._t - t0) / w)));
+  DS.gappy = bins.size < 100;
+  hidden = new Set(); hits = []; hitCur = -1; $('search').value = ''; $('searchCount').textContent = ''; $('hitNav').classList.add('hidden');
+  INC = null; incId = null; actById = new Map(); focus = -1; scope = 'all';
+  storyEditing = null; renderStory();
+  $('dbar').classList.remove('hidden');
+}
+
+async function loadDataset(id) {
+  const d = datasets.find(x => x.id === id); if (!d) return;
+  $('blocks').innerHTML = `<div class="empty"><b>Loading ${esc(d.title || d.id)}…</b><br><span class="small">${(d.events || 0).toLocaleString()} events</span></div>`;
+  const r = await fetch('data/' + d.file); if (!r.ok) throw new Error(`${d.file}: HTTP ${r.status}`);
+  const p = parseEvents(await r.text(), d.file);
+  setDataset(d.id, d.title || p.title, p.events);
+  await loadIncidentList();
+}
+async function loadIncidentList() {
+  incList = incList.filter(x => x.local);
+  try { const r = await fetch('incidents/index.json', { cache: 'no-store' }); if (r.ok) incList = incList.concat(await r.json()); } catch {}
+  fillSelectors();
+}
+function fillSelectors() {
+  $('dsSel').innerHTML = datasets.map(d => `<option value="${esc(d.id)}">${esc(d.title || d.id)}</option>`).join('');
+  if (DS) $('dsSel').value = DS.id;
+  const mine = incList.filter(x => !x.dataset || x.dataset === DS?.id);
+  $('incSel').innerHTML = `<option value="">No incident (whole dataset)</option>` + mine.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  $('incSel').value = incId || '';
+  fillScope();
+}
+function fillScope() {
+  $('scopeSel').innerHTML = `<option value="all">Timeline: all incidents</option>` +
+    (INC ? `<option value="incident">Timeline: this incident</option>` : '');
+  $('scopeSel').value = scope;
+  $('laneSeg').classList.toggle('hidden', scope !== 'incident');
+  $('othersLbl').classList.toggle('hidden', scope !== 'incident');
+  laneButtons();
+}
+
+// ---------- incidents ----------
+function indexActions() { actById = new Map((INC?.actions || []).map(a => [String(a.event_id), a])); }
+const actionAt = i => i >= 0 ? actById.get(E[i].event_id) : undefined;
+async function selectIncident(id, focusId) {
+  if (storyEditing) finishEdit(true);  // save an open cell edit into the incident it belongs to
+  if (!id) { INC = null; incId = null; indexActions(); setScope('all'); fillSelectors(); renderSide(); renderStory(); setFocus(focus >= 0 ? focus : 0); return; }
+  const meta = incList.find(x => x.id === id);
+  let inc = meta?.local;
+  if (!inc) { const r = await fetch(`incidents/${encodeURIComponent(id)}.json`, { cache: 'no-store' }); if (!r.ok) return alert(`Could not load incident ${id}`); inc = await r.json(); }
+  inc.actions = (inc.actions || []).map(a => ({ ...a, event_id: String(a.event_id), priority: +a.priority || 2, pinned: a.pinned !== false, comment: a.comment || '' }));
+  inc.tags = normTags(inc.tags);
+  INC = inc; incId = id; indexActions(); fillSelectors(); setScope('incident'); renderSide(); renderStory();
+  let f = byId.get(String(focusId));  // a linked event, else the most important pinned one, else the start of the range
+  if (f == null) { const a = sortedActions('priority').find(a => a.pinned); f = a ? byId.get(a.event_id) : Math.min(firstAtOrAfter(scopeRange()[0]), E.length - 1); }
+  setFocus(f);
+}
+function sortedActions(how = 'time') {
+  const list = (INC?.actions || []).filter(a => byId.has(a.event_id));
+  const t = a => byId.get(a.event_id);
+  return list.sort((a, b) => how === 'priority' ? (b.pinned - a.pinned) || (a.priority - b.priority) || (t(a) - t(b)) : t(a) - t(b));
+}
+let saveTimer;
+function changed() {  // an edit to the incident: repaint what depends on it, then save
+  indexActions(); computeLanes(); renderDetail(false); renderTags(); renderStory(); draw();
+  clearTimeout(saveTimer); status('Saving…'); saveTimer = setTimeout(save, 350);
+}
+function status(s) { $('saveStatus').textContent = s; }
+async function save() {
+  if (!INC) return;
+  INC.updated = new Date().toISOString();
+  const meta = incList.find(x => x.id === incId); if (meta) { meta.name = INC.name; meta.actions = INC.actions; meta.from_to = INC.from_to; meta.tags = INC.tags; }
+  if (!writable) return status('Not saved: open through python3 serve.py');
+  try {
+    const r = await fetch(`incidents/${encodeURIComponent(incId)}.json`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(INC) });
+    if (!r.ok) throw new Error(r.status === 501 ? 'this server cannot save; use python3 serve.py' : `HTTP ${r.status}`);
+    status(`Saved incidents/${incId}.json`);
+  } catch (e) { status(`NOT saved: ${e.message}`); }
+}
+function newIncident() {
+  if (storyEditing) finishEdit(true);
+  if (!DS) return false;
+  const name = prompt('Name for the new incident:'); if (!name || !name.trim()) return false;
+  let id = slug(name), n = 2; while (incList.some(x => x.id === id)) id = `${slug(name)}-${n++}`;
+  const [t0, t1] = viewTimeRange();
+  INC = { name: name.trim(), incident_description: '', dataset: DS.id, tags: [], from_to: { from: new Date(t0).toISOString(), to: new Date(t1).toISOString() }, actions: [] };
+  incId = id; incList.push({ id, name: INC.name, dataset: DS.id, from_to: INC.from_to, actions: INC.actions, local: writable ? undefined : INC });
+  indexActions(); fillSelectors(); computeLanes(); renderSide(); renderStory(); draw(); renderDetail(false); save(); updateURL();
+  return true;
+}
+function ensureIncident() { return INC ? true : newIncident(); }
+function coverPinned(i) {  // a pinned event must fall inside the incident's from_to: widen the range to reach it
+  const a = INC.actions.find(x => x.event_id === E[i].event_id); if (!a?.pinned) return;
+  const t = E[i]._t, iso = ms => new Date(ms).toISOString().replace('.000Z', 'Z');
+  const t0 = parseT(INC.from_to?.from), t1 = parseT(INC.from_to?.to);
+  INC.from_to = { from: isNaN(t0) || t < t0 ? iso(t) : INC.from_to.from, to: isNaN(t1) || t > t1 ? iso(t) : INC.from_to.to };
+}
+function togglePin(i) {
+  if (!ensureIncident()) return;
+  const id = E[i].event_id, a = actById.get(id);
+  if (!a) INC.actions.push({ event_id: id, priority: 2, pinned: true, comment: '' });
+  else if (a.pinned && !a.comment) INC.actions.splice(INC.actions.indexOf(a), 1);  // unpinned with nothing to say: drop it
+  else a.pinned = !a.pinned;
+  coverPinned(i); changed();
+}
+function setPriority(i, p) {
+  if (!ensureIncident()) return;
+  const id = E[i].event_id, a = actById.get(id);
+  if (a) a.priority = p; else INC.actions.push({ event_id: id, priority: p, pinned: true, comment: '' });
+  coverPinned(i); changed();
+}
+// ---------- tags ----------
+// An incident defines a few tags ({id, label, color}); each of its events has at most one (action.tag).
+// The timeline colors pinned events by tag; untagged ones are drawn in the ink color, unpinned ones grey.
+const TAG_COLORS = ['#2f6fdb', '#e0702a', '#1f9d6a', '#c0428f', '#b8961c', '#6b5bd2', '#d64545', '#2a9bb5'];
+function normTags(tags) {
+  return (Array.isArray(tags) ? tags : []).map((t, k) => ({ ...t, id: String(t.id ?? t.label), label: String(t.label ?? t.id), color: t.color || TAG_COLORS[k % TAG_COLORS.length] }));
+}
+function tagOf(a, inc) {  // an action's tag definition, in the open incident or another one
+  if (!a?.tag) return null;
+  const tags = !inc || inc === incId ? INC?.tags : normTags(incList.find(x => x.id === inc)?.tags);
+  return tags?.find(t => t.id === a.tag) || null;
+}
+function setTag(i, id) {  // toggle tag id on event i, pinning it if needed
+  if (!ensureIncident()) return;
+  const eid = E[i].event_id, a = actById.get(eid);
+  if (!a) INC.actions.push({ event_id: eid, priority: 2, pinned: true, comment: '', tag: id });
+  else if (a.tag === id) delete a.tag;
+  else { a.tag = id; a.pinned = true; }
+  changed();
+}
+function renderTags() {
+  const box = $('tagPanel'); box.classList.toggle('hidden', !INC); if (!INC) return;
+  const n = new Map(), cur = actionAt(focus)?.tag; let none = 0;
+  for (const a of INC.actions) if (a.pinned && byId.has(a.event_id)) a.tag ? n.set(a.tag, (n.get(a.tag) || 0) + 1) : none++;
+  box.innerHTML = `<h3 title="Click a tag to open a tab with its events. Double-click to rename it, click the dot to change its color. Tag an event with the tag button on it.">Tags</h3>` +
+    INC.tags.map((t, k) => `<div class="trow${t.id === cur ? ' on' : ''}" data-k="${k}" title="${esc(t.description || t.label)}"><span class="sw" style="background:${esc(t.color)}" title="Change color"></span>
+      <span class="nm">${esc(t.label)}</span><span class="n">${n.get(t.id) || 0}</span>${k < 9 ? `<kbd title="Shift+${k + 1}">⇧${k + 1}</kbd>` : ''}<span class="x" title="Delete this tag">×</span></div>`).join('') +
+    (none ? `<div class="trow none" title="Pinned events with no tag (drawn in the ink color)"><span class="sw" style="background:var(--ink)"></span><span class="nm">No tag</span><span class="n">${none}</span></div>` : '') +
+    `<button id="tagAdd">+ new tag</button>`;
+}
+function editTags(fn) { fn(); changed(); }
+function newTag() {  // ask for a name and add the tag to the incident; returns its id, or null
+  if (!ensureIncident()) return null;
+  const label = prompt('Name of the new tag:'); if (!label?.trim()) return null;
+  let id = slug(label) || 'tag', n = 2; while (INC.tags.some(t => t.id === id)) id = `${slug(label)}-${n++}`;
+  INC.tags.push({ id, label: label.trim(), color: TAG_COLORS[INC.tags.length % TAG_COLORS.length] });
+  return id;
+}
+// The tag button on an event opens this menu: the incident's tags (pick one to put it on, or take it off), and + new tag.
+function closeTagMenu() { $('tagMenu')?.remove(); }
+function openTagMenu(i, btn) {
+  closeTagMenu();
+  const cur = actionAt(i)?.tag, m = document.createElement('div'); m.id = 'tagMenu';
+  m.innerHTML = (INC?.tags || []).map((t, k) => `<button class="tm${t.id === cur ? ' on' : ''}" data-k="${k}" title="${t.id === cur ? 'Take this tag off' : 'Put this tag on the event'}"><span class="sw" style="background:${esc(t.color)}"></span>${esc(t.label)}<span class="ck">${t.id === cur ? '✓' : ''}</span></button>`).join('') +
+    `<button class="tm add">+ new tag</button>`;
+  m.onclick = ev => {
+    const b = ev.target.closest('.tm'); if (!b) return; closeTagMenu();
+    if (b.classList.contains('add')) { const id = newTag(); if (id) setTag(i, id); }
+    else setTag(i, INC.tags[+b.dataset.k].id);
+  };
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+  m.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  m.style.top = (r.bottom + 4 + h > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+}
+document.addEventListener('mousedown', ev => { if (!ev.target.closest('#tagMenu, .tg')) closeTagMenu(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeTagMenu(); });
+addEventListener('scroll', closeTagMenu, true); addEventListener('resize', closeTagMenu);
+$('tagPanel').addEventListener('click', ev => {
+  if (ev.target.id === 'tagAdd') { if (newTag()) changed(); return; }
+  const row = ev.target.closest('.trow[data-k]'); if (!row) return;
+  const t = INC.tags[+row.dataset.k];
+  if (ev.target.closest('.x')) {
+    const used = INC.actions.filter(a => a.tag === t.id);
+    if (used.length && !confirm(`Delete the tag "${t.label}"? ${used.length} event${used.length > 1 ? 's lose' : ' loses'} it.`)) return;
+    return editTags(() => { used.forEach(a => delete a.tag); INC.tags.splice(INC.tags.indexOf(t), 1); });
+  }
+  if (ev.target.closest('.sw')) {
+    const inp = document.createElement('input'); inp.type = 'color'; inp.value = /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#888888';
+    inp.oninput = () => { t.color = inp.value; renderTags(); draw(); renderDetail(false); }; inp.onchange = () => changed(); inp.click(); return;
+  }
+  openTagTab(t);
+});
+function openTagTab(t) {  // a tab in the event list with the open incident's events that carry tag t, in dataset order
+  const idxs = INC.actions.filter(a => a.tag === t.id && a.pinned && byId.has(String(a.event_id))).map(a => byId.get(String(a.event_id))).sort((p, q) => p - q);
+  if (!idxs.length) return status(`No events tagged "${t.label}" yet`);
+  openTab('tag', { key: `${incId}:${t.id}`, name: t.label, idxs, n: idxs.length });
+}
+$('tagPanel').addEventListener('dblclick', ev => {
+  const row = ev.target.closest('.trow[data-k]'); if (!row || ev.target.closest('.sw, .x')) return;
+  const t = INC.tags[+row.dataset.k], label = prompt('Rename the tag:', t.label);
+  if (label?.trim()) editTags(() => { t.label = label.trim(); });
+});
+function setComment(i, text) {
+  const id = E[i].event_id, a = actById.get(id);
+  if (a) { a.comment = text; if (!text && !a.pinned) INC.actions.splice(INC.actions.indexOf(a), 1); }
+  else if (text) INC.actions.push({ event_id: id, priority: 2, pinned: true, comment: text });
+  coverPinned(i); changed();
+}
+function editComment(i) {
+  if (!ensureIncident()) return;
+  const el = $('blocks').querySelector(`.blk[data-i="${i}"]`); if (!el) return;
+  let box = el.querySelector('.comment');
+  if (!box) { box = document.createElement('div'); box.className = 'comment'; el.querySelector('.meta').after(box); }
+  if (box.querySelector('textarea')) return;
+  const before = actionAt(i)?.comment || '';
+  box.innerHTML = `<textarea placeholder="Why does this event matter to the incident?  (⌘/Ctrl+Enter to save, Esc to cancel)"></textarea>`;
+  const ta = box.firstChild; ta.value = before; ta.focus();
+  let done = false;
+  const finish = keep => { if (done) return; done = true; const v = ta.value.trim(); if (keep && v !== before) setComment(i, v); else renderDetail(false); };
+  ta.onblur = () => finish(true);
+  ta.onclick = e => e.stopPropagation();
+  ta.onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape') finish(false); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) finish(true); };
+}
+
+// ---------- timeline (zoomed out) ----------
+// Only pinned events are drawn, except in a channel's timeline, which shows every event of the channel.
+// Lanes are agents (one incident, one channel) or incidents (all incidents, or one agent).
+const AX = 20;
+let GUT = 150, marks = [], laneMode = 'agent', laneDrag = null, gutDrag = null;  // laneDrag: {k: lane dragged, t: gap it would drop into, moved}  // laneMode: 'agent' or 'channel'. marks: [{i: event index, a: pinned action, k: lane, inc: incident id}]
+const incidentsHere = () => incList.filter(x => !x.dataset || x.dataset === DS?.id)
+  .map(x => x.id === incId && INC ? { ...x, name: INC.name, from_to: INC.from_to, actions: INC.actions } : x);
+const pinnedOf = x => (Array.isArray(x.actions) ? x.actions : []).filter(a => a.pinned !== false && byId.has(String(a.event_id)));
+function incRange(x) {  // an incident's [t0, t1] in ms: its from_to, else the span of its pinned events
+  let t0 = parseT(x.from_to?.from), t1 = parseT(x.from_to?.to);
+  const ts = pinnedOf(x).map(a => E[byId.get(String(a.event_id))]._t);
+  if (isNaN(t0)) t0 = ts.length ? Math.min(...ts) : E[0]._t;
+  if (isNaN(t1)) t1 = ts.length ? Math.max(...ts) : E[E.length - 1]._t;
+  return [t0, t1];
+}
+function scopeRange() {  // [t0, t1] in ms for the current scope
+  if (!E.length) return [0, 1];
+  if (scope === 'incident' && INC) return incRange(INC);
+  return [E[0]._t, E[E.length - 1]._t];
+}
+function toX(t0, t1) {  // a time range in the current x units
+  if (xmode === 'time') return [t0, t1];
+  return [firstAtOrAfter(t0), Math.max(firstAtOrAfter(t1 + 1) - 1, firstAtOrAfter(t0))];
+}
+function viewTimeRange() {
+  if (!E.length) return [0, 1];
+  if (xmode === 'time') return [view.a, view.b];
+  const c = i => E[Math.max(0, Math.min(E.length - 1, Math.round(i)))]._t;
+  return [c(view.a), c(view.b)];
+}
+function fit() {
+  let [a, b] = toX(...scopeRange());
+  if (b <= a) { a -= xmode === 'time' ? 60e3 : 3; b += xmode === 'time' ? 60e3 : 3; }
+  const p = (b - a) * 0.03; view = { a: a - p, b: b + p };
+}
+function setScope(s) {
+  scope = s === 'incident' && !INC ? 'all' : s; fillScope(); computeLanes();
+  xmode = scope !== 'incident' && DS?.gappy ? 'order' : 'time';  // the horizontal axis: real time, or, across a dataset with long gaps, the event order
+  fit(); draw(); renderChannels();
+}
+function computeLanes() { buildLanes(); focusLane(); }
+function buildLanes() {
+  lanes = []; marks = [];
+  if (!E.length) return;
+  if (scope === 'incident' && INC) {  // one incident: a lane per agent or per channel in the order they first appear
+    const pts = [];
+    for (const a of sortedActions('time')) { const i = byId.get(a.event_id); if (a.pinned) pts.push({ i, a }); }
+    if (showOthers) {  // unpinned events anywhere in the dataset (not just the incident's range): by its agents, or in its channels
+      const ags = new Set(), chs = new Set(), pinned = new Set(pts.map(o => o.i));
+      for (const a of INC.actions) { const i = byId.get(a.event_id); if (i == null) continue; ags.add(E[i]._a); if (E[i]._c) chs.add(E[i]._c); }
+      const byAg = laneMode === 'agent', byCh = !byAg;
+      for (let i = 0; i < E.length; i++)
+        if (!pinned.has(i) && ((byAg && ags.has(E[i]._a)) || (byCh && chs.has(E[i]._c)))) pts.push({ i });
+      pts.sort((p, q) => p.i - q.i);
+    }
+    laneUp(pts.map(o => ({ ...o, inc: o.a ? incId : undefined })));
+    arrangeLanes();
+    return;
+  }
+  for (const x of incidentsHere().sort((p, q) => incRange(p)[0] - incRange(q)[0])) {  // all incidents: a lane per incident
+    const ps = pinnedOf(x).map(a => ({ a, i: byId.get(String(a.event_id)) })).filter(o => !hidden.has(E[o.i]._a.key)).sort((p, q) => p.i - q.i);
+    const k = lanes.push({ label: x.name, inc: x }) - 1;
+    for (const o of ps) marks.push({ ...o, k, inc: x.id });
+  }
+}
+// The open event always shows on an incident's timeline: when no lane draws it, it gets a dot on its lane, or a
+// temporary lane (its agent's or its channel's events, in grey) that goes away once the focus moves on.
+let lanesVer = 0, revealFocus = false;
+function focusLane() {
+  lanesVer++;
+  if (lanes[lanes.length - 1]?.temp) lanes.pop();
+  if (marks.some(m => m.temp)) marks = marks.filter(m => !m.temp);
+  if (scope !== 'incident' || !INC || focus < 0 || focus >= E.length || marks.some(m => m.i === focus)) return;
+  const e = E[focus], pin = i => { const a = actionAt(i); return a?.pinned ? { a, inc: incId } : {}; };
+  let k = lanes.findIndex(l => laneMode === 'agent' ? l.agent === e._a : l.chan === (e._c || null));
+  if (k >= 0) { marks.push({ i: focus, k, temp: true, ...pin(focus) }); return; }
+  k = lanes.push(laneMode === 'agent' ? { label: e._a.name, agent: e._a, temp: true } : { label: e._c ? e._c.key : '(no channel)', chan: e._c || null, temp: true }) - 1;
+  for (const i of (laneMode === 'agent' ? e._a : e._c)?.idxs || [focus]) marks.push({ i, k, temp: true, ...pin(i) });
+}
+// Agent and channel lanes can be pinned (kept at the top), dragged into another order, and added with the "+" row
+// below the lanes even when nothing on them is pinned (an added lane shows all its events, in grey). The layout is
+// kept in the incident, per lane mode: lanes: {agent|channel: {pinned: [key], order: [key], added: [key], bare: [key]}}.
+// A bare lane hides its plain (grey) events, keeping the pinned and commented ones.
+let hoverK = -1;
+const canArrange = () => scope === 'incident' && !!INC;
+const laneKey = l => laneMode === 'agent' ? l.agent.key : l.chan ? l.chan.key : '';  // '': (no channel)
+function laneCfg() { const c = INC?.lanes?.[laneMode] || {}; return { pinned: c.pinned || [], order: c.order || [], added: c.added || [], bare: c.bare || [] }; }
+function setLaneCfg(c) { (INC.lanes ||= {})[laneMode] = c; changed(); }
+function arrangeLanes() {
+  if (!canArrange()) return;
+  const c = laneCfg(), have = new Set(lanes.map(laneKey));
+  for (const key of [...c.pinned, ...c.added]) {  // pinned and added lanes show even with no pinned event on them
+    if (have.has(key)) continue; have.add(key);
+    const ref = laneMode === 'agent' ? agents.find(a => a.key === key) : key ? chanByKey.get(key) : null;
+    if (laneMode === 'agent' ? !ref || hidden.has(key) : key && !ref) continue;
+    const k = lanes.push(laneMode === 'agent' ? { label: ref.name, agent: ref } : { label: ref ? ref.key : '(no channel)', chan: ref }) - 1;
+    for (const i of ref?.idxs || []) if (!hidden.has(E[i]._a.key)) { const a = actionAt(i); marks.push({ i, k, ...(a?.pinned ? { a, inc: incId } : {}) }); }
+  }
+  const pin = new Set(c.pinned), add = new Set(c.added), rank = new Map(c.order.map((key, j) => [key, j]));
+  const r = k => rank.get(laneKey(lanes[k])) ?? 1e6 + k;  // lanes never placed keep the order they first appear in, after the placed ones
+  const idx = lanes.map((l, k) => k).sort((p, q) => pin.has(laneKey(lanes[q])) - pin.has(laneKey(lanes[p])) || r(p) - r(q));
+  const old = lanes, to = new Map(idx.map((k, j) => [k, j]));
+  lanes = idx.map(k => old[k]); for (const m of marks) m.k = to.get(m.k);
+  const bare = new Set(c.bare);
+  for (const l of lanes) { const key = laneKey(l); l.pinned = pin.has(key); l.added = add.has(key); l.bare = bare.has(key); }
+  if (bare.size) marks = marks.filter(m => m.a || !lanes[m.k].bare || actionAt(m.i)?.comment);
+}
+function toggleLaneBare(k) {
+  const c = laneCfg(), key = laneKey(lanes[k]);
+  setLaneCfg({ ...c, bare: c.bare.includes(key) ? c.bare.filter(x => x !== key) : [...c.bare, key] });
+}
+function placeLane(key, j, pinned) {  // put a lane at position j among the other lanes, pinned or not
+  const c = laneCfg(), pin = new Set(c.pinned), keys = lanes.filter(l => !l.temp).map(laneKey).filter(k => k !== key);
+  keys.splice(j, 0, key); pinned ? pin.add(key) : pin.delete(key);
+  const order = [...keys.filter(k => pin.has(k)), ...keys.filter(k => !pin.has(k))];
+  setLaneCfg({ ...c, pinned: order.filter(k => pin.has(k)), order });
+}
+function toggleLanePin(k) {  // pinning puts the lane at the bottom of the pinned ones; unpinning, just below them
+  const l = lanes[k], P = lanes.filter(x => x.pinned && !x.temp).length;
+  placeLane(laneKey(l), l.pinned ? P - 1 : P, !l.pinned);
+}
+function removeLane(k) {
+  const c = laneCfg(), key = laneKey(lanes[k]), not = x => x !== key;
+  setLaneCfg({ pinned: c.pinned.filter(not), order: c.order.filter(not), added: c.added.filter(not), bare: c.bare.filter(not) });
+}
+function dropLane(k, t) {  // the lane dragged from k to the gap before lane t: above the last pinned lane it is pinned, below it unpinned
+  const j = t > k ? t - 1 : t; if (j === k) return;
+  const P = lanes.filter((x, n) => x.pinned && !x.temp && n !== k).length;
+  placeLane(laneKey(lanes[k]), j, j < P ? true : j > P ? false : lanes[k].pinned);
+}
+function openLaneAdd(x, y) {
+  const box = $('laneAdd'), inp = box.querySelector('input'), list = box.querySelector('.list'), have = new Set(lanes.filter(l => !l.temp).map(laneKey));
+  const all = laneMode === 'agent' ? agents.filter(a => !hidden.has(a.key)).map(a => ({ key: a.key, name: a.name, n: a.n }))
+    : channels.map(c => ({ key: c.key, name: c.key, n: c.n }));
+  const fill = () => {
+    const q = inp.value.trim().toLowerCase(), it = all.filter(o => !have.has(o.key) && (!q || o.name.toLowerCase().includes(q)));
+    list.innerHTML = it.slice(0, 200).map((o, n) => `<div class="it${n ? '' : ' sel'}" data-key="${esc(o.key)}"><span class="nm">${esc(o.name)}</span><span class="n">${o.n.toLocaleString()}</span></div>`).join('')
+      || `<div class="small" style="padding:3px 6px">No other ${laneMode === 'agent' ? 'agents' : 'channels'}${q ? ' match' : ''}</div>`;
+  };
+  const add = key => { closeLaneAdd(); const c = laneCfg(); if (!c.added.includes(key)) setLaneCfg({ ...c, added: [...c.added, key] }); };
+  list.onclick = e => { const el = e.target.closest('.it'); if (el) add(el.dataset.key); };
+  inp.oninput = fill;
+  inp.onkeydown = e => { e.stopPropagation(); if (e.key === 'Escape') closeLaneAdd(); if (e.key === 'Enter') { const el = list.querySelector('.it'); if (el) add(el.dataset.key); } };
+  inp.value = ''; inp.placeholder = `Add a ${laneMode} lane: filter…`; fill();
+  box.classList.remove('hidden');
+  box.style.left = Math.max(8, Math.min(x, innerWidth - box.offsetWidth - 8)) + 'px';
+  box.style.top = Math.max(8, Math.min(y + 8, innerHeight - box.offsetHeight - 8)) + 'px';
+  inp.focus();
+}
+function closeLaneAdd() { $('laneAdd').classList.add('hidden'); }
+addEventListener('mousedown', e => { if (!$('laneAdd').classList.contains('hidden') && !$('laneAdd').contains(e.target)) closeLaneAdd(); }, true);
+function laneUp(pts) {  // lanes for time-ordered points, by laneMode; hidden agents are skipped
+  const m = new Map();
+  for (const p of pts) {
+    const e = E[p.i]; if (hidden.has(e._a.key)) continue;
+    let k = 0;
+    if (laneMode === 'agent') { if (!m.has(e._a)) m.set(e._a, lanes.push({ label: e._a.name, agent: e._a }) - 1); k = m.get(e._a); }
+    else if (laneMode === 'channel') { const c = e._c || null; if (!m.has(c)) m.set(c, lanes.push({ label: c ? c.key : '(no channel)', chan: c }) - 1); k = m.get(c); }
+    marks.push({ ...p, k });
+  }
+}
+const laneH = () => lanes.length <= 1 ? 48 : lanes.length <= 8 ? 26 : lanes.length <= 14 ? 22 : 18;
+const ICON = {
+  pin: 'M5 2h6M6.25 2v4.25L4 9.25h8L9.75 6.25V2M8 9.25v5.25',
+  comment: 'M3 3h10a1.5 1.5 0 0 1 1.5 1.5V10a1.5 1.5 0 0 1-1.5 1.5H7.5L4.5 14v-2.5H3A1.5 1.5 0 0 1 1.5 10V4.5A1.5 1.5 0 0 1 3 3z',
+  tag: 'M1.75 2.5v4.6c0 .4.16.78.44 1.06l6.2 6.2a1.5 1.5 0 0 0 2.12 0l3.98-3.98a1.5 1.5 0 0 0 0-2.12l-6.2-6.2A1.5 1.5 0 0 0 7.23 1.6H2.65a.9.9 0 0 0-.9.9zM5 3.75a1.15 1.15 0 1 0 0 2.3a1.15 1.15 0 1 0 0-2.3z',
+};
+const icon = (name, cls = '') => `<svg viewBox="0 0 16 16" class="ic ${cls}" aria-hidden="true"><path d="${ICON[name]}"/></svg>`;
+const PIN = new Path2D(ICON.pin);
+// Long lane names lose their middle, not their end: agent and channel names often differ only by a date at the end.
+// A channel keeps its prefix up to the first "/" (dse/, probier/) and as much of its end as fits.
+function fitLabel(g, s, w) {
+  if (g.measureText(s).width <= w) return s;
+  const pre = s.indexOf('/') + 1;
+  for (let n = s.length - 1; n > 1; n--) { const h = Math.min(Math.floor(n * .4), pre || 1e9), t = s.slice(0, h) + '…' + s.slice(s.length - (n - h)); if (g.measureText(t).width <= w) return t; }
+  return '…';
+}
+// The label column's width: drag its right edge, double-click the edge to reset. Remembered per browser, separately
+// for agent lanes, channel lanes and the other views.
+let gutWs = {}, gutHover = false;
+try { gutWs = JSON.parse(localStorage.getItem('tlGuts')) || {}; } catch {}
+const gutKey = () => scope === 'incident' ? laneMode : 'all';
+function setGutW(w) { w ? gutWs[gutKey()] = Math.round(w) : delete gutWs[gutKey()]; try { localStorage.setItem('tlGuts', JSON.stringify(gutWs)); } catch {} }
+const onGutEdge = mx => Math.abs(mx - (GUT - 12)) <= 3;
+const R = p => p <= 1 ? 9 : p === 2 ? 6.5 : p === 3 ? 4.5 : p === 4 ? 3.5 : 2.5;
+const prio = a => a ? +a.priority || 2 : 5;  // 5: an event no incident lane pins: a small dot
+// Pinned events take their tag's color (the ink color with no tag); other events are grey.
+const dotColor = (m, grey, ink) => m.a ? tagOf(m.a, m.inc)?.color || ink : grey;
+let W = 0, raf = 0;
+const px = x => GUT + (x - view.a) / (view.b - view.a) * (W - GUT - 12);
+const unpx = p => view.a + (p - GUT) / (W - GUT - 12) * (view.b - view.a);
+function draw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); }
+function paint() {
+  const arr = canArrange(), cv = $('tlCanvas'), LH = laneH(), H = AX + Math.max((lanes.length + arr) * LH, 48) + 8;
+  W = cv.clientWidth; const gutW = gutWs[gutKey()]; GUT = gutW ? Math.round(Math.max(90, Math.min(W * .7, gutW))) : laneMode === 'channel' && scope === 'incident' ? Math.min(320, Math.round(Math.max(220, W * .3))) : scope === 'incident' ? 160 : Math.min(300, Math.round(W * .24));
+  const dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px'; }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement), v = n => css.getPropertyValue(n).trim();
+  const ink = v('--ink'), muted = v('--muted'), line = v('--line'), panel = v('--panel'), accent = v('--accent'), focusC = v('--focus');
+  const FONT = '12px "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  g.font = FONT; g.textBaseline = 'middle';
+  if (!E.length) return;
+  // axis
+  g.fillStyle = muted; g.strokeStyle = line; g.lineWidth = 1;
+  for (const [x, label] of ticks()) {
+    const p = Math.round(px(x)) + .5; if (p < GUT || p > W) continue;
+    g.beginPath(); g.moveTo(p, AX - 4); g.lineTo(p, H); g.stroke();
+    g.fillText(label, Math.min(p + 3, W - g.measureText(label).width - 2), 9);
+  }
+  // lanes
+  if (!marks.length) {
+    g.fillStyle = muted;
+    g.fillText(scope === 'incident' ? 'No pinned events in this incident yet. Open an event below and pin it (p).'
+      : 'No pinned events yet. Pin an event below (p) to start an incident.', GUT + 8, AX + LH * (lanes.length ? lanes.length + .5 : 1));
+  }
+  lanes.forEach((l, k) => {
+    const y = AX + k * LH;
+    if (k % 2 === 0) { g.fillStyle = v('--lane'); g.fillRect(0, y, W, LH); }
+    let left = 6;
+    if (l.inc) {  // an incident lane: its date range as a bar behind its pinned events
+      const [a, b] = toX(...incRange(l.inc)), x0 = Math.max(GUT, px(a)), x1 = Math.min(W, Math.max(px(b), px(a) + 3));
+      if (x1 > x0) { g.fillStyle = accent; g.globalAlpha = l.inc.id === incId ? .5 : .25; g.fillRect(x0, y + LH / 2 - 2, x1 - x0, 4); g.globalAlpha = 1; }
+    }
+    const dragged = laneDrag?.moved && laneDrag.k === k, xIcon = arr && l.added && k === hoverK;
+    g.font = (l.inc?.id === incId && incId || l.temp ? '600 ' : '') + FONT; g.fillStyle = l.temp ? accent : ink;  // a temporary lane, for the open event
+    if (dragged) g.globalAlpha = .35;
+    const fIcon = arr && !l.temp && (l.bare || k === hoverK), fx = GUT - (l.added && k === hoverK ? 58 : 42);  // the lane's filter: its plain events shown or hidden
+    const t = fitLabel(g, l.label, GUT - left - 14 - (arr ? fIcon ? GUT - fx - 4 : xIcon ? 48 : 30 : 0));
+    g.fillText(t, left, y + LH / 2 + .5); g.font = FONT;
+    if (arr && (l.pinned || k === hoverK)) {  // the lane's pin (always shown when pinned), and × for an added lane
+      g.globalAlpha = l.pinned ? 1 : .3; g.save(); g.translate(GUT - 29, y + LH / 2 - 6.5); g.scale(.8, .8);
+      g.strokeStyle = g.fillStyle = ink; g.lineWidth = 1.7; g.lineCap = g.lineJoin = 'round'; if (l.pinned) g.fill(PIN); g.stroke(PIN); g.restore();
+      if (xIcon) { g.globalAlpha = 1; g.fillStyle = muted; g.font = '14px sans-serif'; g.fillText('×', GUT - 41, y + LH / 2); }
+      g.textAlign = 'left'; g.font = FONT;
+    }
+    if (fIcon) {  // a funnel: three lines getting shorter, solid when the lane hides its plain events
+      g.globalAlpha = l.bare ? 1 : .3; g.strokeStyle = l.bare ? accent : ink; g.lineWidth = 1.7; g.lineCap = 'round'; g.beginPath();
+      for (const [w, dy] of [[5, -4], [3, 0], [1, 4]]) { g.moveTo(fx - w, y + LH / 2 + dy); g.lineTo(fx + w, y + LH / 2 + dy); }
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+  });
+  if (arr) {
+    const P = lanes.filter(l => l.pinned).length;
+    if (P && P < lanes.length) { g.strokeStyle = muted; g.globalAlpha = .6; g.lineWidth = 1; g.beginPath(); g.moveTo(0, AX + P * LH + .5); g.lineTo(W, AX + P * LH + .5); g.stroke(); g.globalAlpha = 1; }
+    g.fillStyle = hoverK === lanes.length ? ink : accent; g.fillText(`+ add ${laneMode === 'agent' ? 'an agent' : 'a channel'}`, 6, AX + lanes.length * LH + LH / 2 + .5);
+    if (laneDrag?.moved) { g.fillStyle = accent; g.fillRect(0, AX + laneDrag.t * LH - 1, W, 2); }
+  }
+  // the label column's edge: a thin line, thicker and in the focus color while hovered or dragged (like the divider below the timeline)
+  if (gutHover || gutDrag) { g.fillStyle = v('--focus'); g.fillRect(GUT - 13.5, 0, 3, H); } else { g.fillStyle = ink; g.fillRect(GUT - 12.5, 0, 1, H); }
+  g.save(); g.beginPath(); g.rect(GUT - 12, 0, W, H); g.clip();
+  // where the open block sits, and the blocks on screen below it: when the list follows the lanes (an agent's tab with
+  // a lane per agent, or a channel's tab with a lane per channel), a band on that lane; otherwise just the line
+  if (focus >= 0) {
+    const shown = onScreen(), e0 = E[shown[0] ?? focus];
+    const lk = ctxBy === 'agent' && laneMode === 'agent' ? lanes.findIndex(l => l.agent === e0._a)
+      : ctxBy === 'channel' && laneMode === 'channel' && e0._c ? lanes.findIndex(l => l.chan === e0._c) : -1;
+    if (lk >= 0 && shown.length > 1) { const a = px(X(shown[0])), b = px(X(shown[shown.length - 1])); g.fillStyle = accent; g.globalAlpha = .16; g.fillRect(a - 4, AX + lk * LH, Math.max(8, b - a + 8), LH); g.globalAlpha = 1; }
+    const k = laneMode === 'channel' && scope === 'incident' ? lanes.findIndex(l => l.chan === (E[focus]._c || null)) : lanes.findIndex(l => l.agent === E[focus]._a);
+    if (k >= 0 && !marks.some(m => m.i === focus)) { g.beginPath(); g.arc(px(X(focus)), AX + k * LH + LH / 2, 4, 0, 7); g.fillStyle = panel; g.fill(); g.strokeStyle = focusC; g.lineWidth = 2; g.stroke(); }
+  }
+  // events: pinned ones sized by priority and colored by tag, others small and grey; the open event last, on top
+  layout(LH);
+  let inView = 0, othersInView = 0, fm = null;
+  const dot = m => {
+    const r = R(prio(m.a));
+    g.beginPath(); g.arc(m.x, m.y, r, 0, 7); g.fillStyle = dotColor(m, muted, ink); g.fill(); g.strokeStyle = panel; g.lineWidth = 1; g.stroke();
+  };
+  for (const m of [...marks].sort((x, y) => prio(y.a) - prio(x.a))) {
+    if (m.x == null) continue;
+    if (!m.temp) m.a ? inView++ : othersInView++;
+    if (m.i === focus) fm = m; else dot(m);
+  }
+  if (focus >= 0) {  // the open event's line, over the other dots; its own dot goes on top of it
+    const p = Math.round(px(X(focus))) + .5; g.strokeStyle = focusC; g.lineWidth = 1.5; g.beginPath(); g.moveTo(p, 2); g.lineTo(p, H); g.stroke();
+  }
+  if (fm) {
+    const r = R(prio(fm.a));
+    dot(fm);  // a tight ring in the focus color (as the line and the open block's box), just outside the dot's own thin border
+    g.beginPath(); g.arc(fm.x, fm.y, r + 2, 0, 7); g.strokeStyle = focusC; g.lineWidth = 2; g.stroke();
+    if (revealFocus) {  // scroll the lanes to the open event's
+      const wrap = $('tlWrap'); if (fm.y - 14 < wrap.scrollTop + AX || fm.y + 14 > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = fm.y - wrap.clientHeight / 2;
+    }
+  }
+  revealFocus = false;
+  g.restore();
+  const [t0, t1] = viewTimeRange();
+  $('tlInfo').textContent =
+    `${fmtT(t0, false)} → ${fmtT(t1, false)} UTC · ${span(t1 - t0)} · ${inView} pinned event${inView === 1 ? '' : 's'} (colored)${othersInView ? ` + ${othersInView.toLocaleString()} other (grey)` : ''} · ${scope === 'incident' ? new Set(marks.filter(m => !m.temp).map(m => E[m.i]._a)).size + ' agents' + (laneMode === 'channel' ? ` · ${lanes.filter(l => !l.temp).length} channels` : '') : lanes.length + (lanes.length === 1 ? ' incident' : ' incidents')}`;
+}
+// Where each dot goes (m.x, m.y; m.x is undefined off screen). Dots that would land on top of each other spread out
+// a little, up and down within their lane, then a few pixels sideways, so that a pile of events reads as a pile.
+// The open event is placed first, so it stays on its line; then bigger dots, which keep the middle of the lane.
+let laidOut = '';
+function layout(LH) {
+  const key = [lanesVer, focus, view.a, view.b, W, GUT, LH, xmode].join();
+  if (key === laidOut) return; laidOut = key;
+  const CELL = 24, grid = new Map(), cell = (k, x) => k * 1e5 + Math.floor(x / CELL);
+  for (const m of [...marks].sort((p, q) => (q.i === focus) - (p.i === focus) || prio(p.a) - prio(q.a) || p.i - q.i)) {
+    const x0 = px(X(m.i)), y0 = AX + m.k * LH + LH / 2, r = R(prio(m.a));
+    if (x0 < GUT - 12 || x0 > W + 12) { m.x = m.y = undefined; continue; }
+    const near = [];
+    for (let j = -1; j <= 1; j++) { const b = grid.get(cell(m.k, x0) + j); if (b) near.push(...b.slice(-24)); }
+    let best = [0, 0], fit = -1;
+    if (near.length) {
+      const room = LH / 2 - r - 1, step = Math.max(3, r), offs = [];
+      for (const dx of [0, 3, -3]) { offs.push([dx, 0]); for (let dy = step; dy <= room; dy += step) offs.push([dx, -dy], [dx, dy]); }
+      for (const [dx, dy] of offs) {  // the first spot clear enough, else the clearest
+        let f = 9; for (const o of near) f = Math.min(f, Math.hypot(o.x - x0 - dx, o.y - y0 - dy) / (o.r + r));
+        if (f > fit) { fit = f; best = [dx, dy]; } if (f >= .8) break;
+      }
+    }
+    m.x = x0 + best[0]; m.y = y0 + best[1];
+    const c = cell(m.k, m.x); (grid.get(c) || grid.set(c, []).get(c)).push({ x: m.x, y: m.y, r });
+  }
+}
+const STEPS = [1, 5, 15, 60, 300, 900, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 86400, 2 * 86400, 7 * 86400, 14 * 86400, 30 * 86400, 90 * 86400, 365 * 86400].map(s => s * 1000);
+function ticks() {
+  const out = [], room = Math.max(2, Math.floor((W - GUT) / 120));
+  if (xmode === 'order') {
+    for (let k = 0; k <= room; k++) { const i = Math.round(view.a + (view.b - view.a) * k / room); if (i >= 0 && i < E.length) out.push([i, fmtT(E[i]._t, false).slice(0, 10)]); }
+    return out;
+  }
+  const step = STEPS.find(s => (view.b - view.a) / s <= room) || STEPS[STEPS.length - 1];
+  let prevDay = '';
+  for (let t = Math.ceil(view.a / step) * step; t <= view.b; t += step) {
+    const f = fmtT(t, step < 60e3), day = f.slice(0, 10);
+    out.push([t, step >= 86400e3 ? day : day !== prevDay ? `${day.slice(5)} ${f.slice(11)}` : f.slice(11)]); prevDay = day;
+  }
+  return out;
+}
+function hitTest(mx, my) {  // the event under the pointer, if any: the one drawn on top (the open one, then by priority), then the nearest
+  const LH = laneH(); let best = null, bk = null;
+  layout(LH);
+  for (const m of marks) {
+    if (m.x == null) continue; const d = Math.hypot(m.x - mx, m.y - my); if (d > R(prio(m.a)) + 3) continue;
+    const k = [m.i === focus ? 0 : 1, prio(m.a), d];
+    if (!bk || k[0] < bk[0] || (k[0] === bk[0] && (k[1] < bk[1] || (k[1] === bk[1] && d < bk[2])))) { bk = k; best = m; }
+  }
+  return best;
+}
+function nearest(x, idxs) {  // the event closest to an x position: any event, or one of a sorted index list
+  const j = idxs ? lower(idxs, x) : xmode === 'time' ? firstAtOrAfter(x) : Math.round(x);
+  const c = (idxs ? [idxs[j - 1], idxs[j]] : [j - 1, j]).filter(i => i != null && i >= 0 && i < E.length);
+  return c.sort((p, q) => Math.abs(X(p) - x) - Math.abs(X(q) - x))[0] ?? -1;
+}
+function zoom(f, around) {
+  const c = around ?? (view.a + view.b) / 2, full = toX(E[0]._t, E[E.length - 1]._t);
+  const min = xmode === 'time' ? 2000 : 6, max = Math.max((full[1] - full[0]) * 1.5, min * 2);
+  const w = Math.max(min, Math.min(max, (view.b - view.a) * f)), k = (c - view.a) / (view.b - view.a);
+  view = { a: c - w * k, b: c + w * (1 - k) }; draw();
+}
+function centerOn(i) {  // keep the focused event on screen
+  const x = X(i), w = view.b - view.a;
+  if (x < view.a || x > view.b) view = { a: x - w / 2, b: x + w / 2 };
+}
+(() => {
+  const cv = $('tlCanvas'), tip = $('tip'); let drag = null;
+  cv.addEventListener('wheel', e => {
+    if (!E.length) return;
+    const over = $('tlWrap').scrollHeight > $('tlWrap').clientHeight + 2, r = cv.getBoundingClientRect();
+    if (over && e.clientX - r.left < GUT && !(e.ctrlKey || e.metaKey) && Math.abs(e.deltaY) > Math.abs(e.deltaX)) return;  // over the lane names: let the lanes scroll
+    e.preventDefault();
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { const d = e.deltaX / (W - GUT) * (view.b - view.a); view = { a: view.a + d, b: view.b + d }; draw(); }
+    else zoom(Math.exp(e.deltaY * (e.ctrlKey ? .01 : .0018)), unpx(e.clientX - r.left));
+  }, { passive: false });
+  const laneAt = my => Math.floor((my - AX) / laneH());
+  const ICON_TIP_MS = 3000; let iconAt = '', iconTimer = 0, iconPos = [0, 0];  // the lane icon under the pointer, and its hint's timer
+  const iconOff = () => { if (iconAt) { iconAt = ''; clearTimeout(iconTimer); } };
+  const laneIcon = (lane, mx) => !canArrange() || !lane || lane.temp || mx >= GUT - 12 ? null  // which of a lane's icons is at x = mx
+    : mx >= GUT - 34 ? 'pin' : lane.added && mx >= GUT - 50 ? 'x' : mx >= GUT - (lane.added ? 66 : 50) ? 'bare' : null;
+  const iconTip = (lane, ic) => ic === 'pin' ? (lane.pinned ? 'Unpin this lane' : 'Pin this lane: keep it at the top')
+    : ic === 'x' ? 'Remove this lane' : ic === 'bare' ? (lane.bare ? 'Show all the events on this lane again' : 'Hide the grey events on this lane: keep only the pinned and commented ones') : '';
+  cv.addEventListener('mousedown', e => {
+    iconOff();
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, k = laneAt(e.clientY - r.top);
+    if (onGutEdge(mx)) { gutDrag = { x: e.clientX, w: GUT }; e.preventDefault(); return; }
+    drag = { x: e.clientX, a: view.a, b: view.b, moved: false };
+    if (canArrange() && mx < GUT - (lanes[k]?.added ? 66 : 50) && lanes[k] && !lanes[k].temp) laneDrag = { k, y: e.clientY, t: k, moved: false };  // a lane's label: drag it up or down
+  });
+  addEventListener('mousemove', e => {
+    if (gutDrag) { gutWs[gutKey()] = Math.max(90, Math.min(W * .7, gutDrag.w + e.clientX - gutDrag.x)); laidOut = ''; tip.classList.add('hidden'); draw(); return; }
+    if (laneDrag) {
+      if (Math.abs(e.clientY - laneDrag.y) > 4) laneDrag.moved = true;
+      if (laneDrag.moved) {
+        const n = lanes.filter(l => !l.temp).length, r = cv.getBoundingClientRect();
+        laneDrag.t = Math.max(0, Math.min(n, Math.round((e.clientY - r.top - AX) / laneH()))); tip.classList.add('hidden'); draw();
+      }
+      return;
+    }
+    if (drag) {
+      const dx = e.clientX - drag.x; if (Math.abs(dx) > 3) drag.moved = true;
+      if (drag.moved) { const d = dx / (W - GUT - 12) * (drag.b - drag.a); view = { a: drag.a - d, b: drag.b - d }; tip.classList.add('hidden'); draw(); }
+      return;
+    }
+    if (e.target !== cv) return tip.classList.add('hidden');
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, m = hitTest(mx, my);
+    const lk = laneAt(my), lane = lanes[lk], hk = canArrange() && mx < GUT - 12 && lk >= 0 && lk <= lanes.length ? lk : -1;
+    if (hk !== hoverK) { hoverK = hk; draw(); }
+    const edge = onGutEdge(mx); if (edge !== gutHover) { gutHover = edge; draw(); }
+    cv.style.cursor = edge ? 'col-resize' : m || (lane && mx < GUT - 12) || hk === lanes.length ? 'pointer' : 'crosshair';
+    if (edge) return tip.classList.add('hidden');
+    const ic = !m && laneIcon(lane, mx);
+    if (ic) {  // a lane's icon: its hint, once the pointer has rested on it a while
+      const key = lk + ':' + ic; iconPos = [e.clientX, e.clientY];
+      if (key !== iconAt) {
+        iconAt = key; clearTimeout(iconTimer); tip.classList.add('hidden');
+        iconTimer = setTimeout(() => {
+          if (!lanes[lk]) return; tip.textContent = iconTip(lanes[lk], ic); tip.classList.remove('hidden');
+          tip.style.left = Math.min(iconPos[0] + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (iconPos[1] + 16) + 'px';
+        }, ICON_TIP_MS);
+      }
+      return;
+    }
+    iconOff();
+    if (!m) return tip.classList.add('hidden');
+    const ev = E[m.i], inc = lanes[m.k].inc;
+    tip.innerHTML = `${m.a ? `<b>${tagOf(m.a, m.inc) ? esc(tagOf(m.a, m.inc).label) + ' · ' : ''}Priority ${prio(m.a)}</b> · ` : INC ? '<b>Not pinned</b> · ' : ''}${esc(ev._a.name)} · ${fmtT(ev._t)} UTC${ev.source ? ` · ${esc(ev.source)}` : ''}${ev._c ? ` · ${esc(ev._c.key)}` : ''}` +
+      (m.a?.comment ? `<br>${esc(snip(m.a.comment, 200))}` : `<br>${esc(snip(ev.text || ev.reasoning || ev.tool, 150))}`) + (inc ? `<br><b>Incident</b> · ${esc(snip(inc.name, 80))}` : '');
+    tip.classList.remove('hidden');
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 16) + 'px';
+  });
+  addEventListener('mouseup', e => {
+    if (gutDrag) { gutDrag = null; setGutW(gutWs[gutKey()]); draw(); return; }
+    const ld = laneDrag; laneDrag = null;
+    if (ld?.moved) { drag = null; dropLane(ld.k, ld.t); draw(); return; }
+    if (!drag) return; const d = drag; drag = null; if (d.moved || e.target !== cv) return;
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    const m = hitTest(mx, my), lk = laneAt(my), lane = lanes[lk];
+    if (m) return m.inc && m.inc !== incId ? selectIncident(m.inc, E[m.i].event_id) : setFocus(m.i);
+    if (canArrange() && mx < GUT - 12) {  // the "+" row, a lane's pin, an added lane's ×, a lane's filter
+      if (lk === lanes.length) return openLaneAdd(e.clientX, e.clientY);
+      const ic = laneIcon(lane, mx);
+      if (ic === 'pin') { tip.classList.add('hidden'); return toggleLanePin(lk); }
+      if (ic === 'x') return removeLane(lk);
+      if (ic === 'bare') { toggleLaneBare(lk); tip.textContent = iconTip(lanes[lk], ic); return; }  // a hint already showing follows the new state
+    }
+    if (mx < GUT - 12) {  // a lane's label: an agent or channel lane opens its tab (on the focused event if it is in it, else the lane's first event), an incident lane opens the incident
+      const f = marks.find(m => m.k === lanes.indexOf(lane)), fe = E[focus];
+      if (lane?.chan) openTab('channel', lane.chan, fe?._c === lane.chan ? focus : f?.i); else if (lane?.agent) openTab('agent', lane.agent, fe?._a === lane.agent ? focus : f?.i); else if (lane?.inc && lane.inc.id !== incId) selectIncident(lane.inc.id);
+      return;
+    }
+    const i = nearest(unpx(mx), (lane?.agent || lane?.chan)?.idxs); if (i >= 0) setFocus(i);  // empty space: go to that moment
+  });
+  cv.addEventListener('mouseleave', () => { iconOff(); tip.classList.add('hidden'); if ((hoverK >= 0 || gutHover) && !laneDrag && !gutDrag) { hoverK = -1; gutHover = false; draw(); } });
+  cv.addEventListener('dblclick', e => {
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left;
+    if (onGutEdge(mx)) { setGutW(0); draw(); return; }
+    if (mx > GUT) zoom(.35, unpx(mx));
+  });
+  new ResizeObserver(draw).observe($('tlWrap'));
+})();
+// The divider under the timeline: drag it to give the timeline or the event list more room (remembered per browser).
+(() => {
+  const sp = $('split'), boxes = [$('tlWrap'), $('tagPanel')];
+  const setH = h => boxes.forEach(b => { b.style.height = h == null ? '' : h + 'px'; b.style.maxHeight = h == null ? '' : 'none'; });
+  try { const h = +localStorage.getItem('tlH'); if (h) setH(h); } catch {}
+  let drag = null;
+  sp.addEventListener('pointerdown', e => { e.preventDefault(); sp.setPointerCapture(e.pointerId); sp.classList.add('drag'); drag = { y: e.clientY, h: $('tlWrap').offsetHeight }; });
+  sp.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const h = Math.round(Math.max(40, Math.min(innerHeight - 200, drag.h + e.clientY - drag.y))); setH(h); drag.last = h;
+  });
+  const end = () => { if (!drag) return; sp.classList.remove('drag'); try { if (drag.last) localStorage.setItem('tlH', drag.last); } catch {} drag = null; };
+  sp.addEventListener('pointerup', end); sp.addEventListener('pointercancel', end);
+  sp.addEventListener('dblclick', () => { setH(null); try { localStorage.removeItem('tlH'); } catch {} });
+})();
+$('zIn').onclick = () => zoom(.5); $('zOut').onclick = () => zoom(2); $('zFit').onclick = () => { fit(); draw(); };
+$('scopeSel').onchange = e => setScope(e.target.value);
+$('showOthers').onchange = e => { showOthers = e.target.checked; computeLanes(); draw(); };
+function openChannel(key, keepFocus) {  // the channel's tab
+  const ch = chanByKey.get(key); if (!ch) return;
+  openTab('channel', ch, keepFocus && E[focus]?._c === ch ? focus : ch.idxs[0]);
+}
+const tabChannel = () => tabs[tabCur]?.by === 'channel' ? tabs[tabCur].base : null;
+function laneButtons() {
+  for (const [id, v] of [['laneAgent', 'agent'], ['laneChannel', 'channel']]) $(id).classList.toggle('on', laneMode === v);
+  $('othersTxt').textContent = laneMode === 'agent' ? "these agents' other events" : 'all events in these channels';
+  $('othersLbl').title = laneMode === 'agent' ? "Also show, in grey, the other events these agents made during the incident"
+    : 'Also show, in grey, every other event in these channels during the incident, by any agent or an unknown one';
+}
+function setLaneMode(v) { laneMode = v; laneButtons(); computeLanes(); draw(); }
+$('laneAgent').onclick = () => setLaneMode('agent'); $('laneChannel').onclick = () => setLaneMode('channel');
+
+// ---------- event blocks (zoomed in) ----------
+function stepFrom(i, d) {  // the next event in the chosen order, or -1
+  const idxs = tabs[tabCur].ref?.idxs;  // an agent's or a channel's tab; else the whole dataset
+  if (idxs) { let lo = 0, hi = idxs.length; while (lo < hi) { const m = (lo + hi) >> 1; idxs[m] < i ? lo = m + 1 : hi = m; } return idxs[lo + d] ?? -1; }
+  for (let j = i + d; j >= 0 && j < E.length; j += d) if (!hidden.has(E[j]._a.key)) return j;
+  return -1;
+}
+function blockHTML(i, isFocus) {
+  const e = E[i], a = actionAt(i), p = a ? Math.min(a.priority, 4) : 0;
+  const pr = [1, 2, 3, 4].map(n => `<button class="pr${a?.priority === n ? ' on' : ''}" data-p="${n}" title="Priority ${n}">${n}</button>`).join('');
+  const around = tabs[tabCur]?.ref?.ctxSet?.has(i);  // added as context around the tab's own events: drawn faded
+  return `<div class="blk ${isFocus ? 'focus' : 'ctx'}${around ? ' ctxev' : ''}${a ? ` pr${p}${a.pinned ? '' : ' unpinned'}` : ''}" data-i="${i}"${around ? ' title="Context: not part of this tab, shown because it is near one of its events"' : ''} style="--c:${e._a.bg}">
+    <div class="meta">${a ? `<span class="pb p${p}" title="Priority ${a.priority}${a.pinned ? '' : ' (unpinned)'}">${a.pinned ? 'P' + a.priority : 'unpinned'}</span>` : ''}<span class="who" title="Open a tab with all of ${esc(e._a.name)}'s events (${e._a.n.toLocaleString()})">${esc(e._a.name)}</span>${e.agent_type ? `<span class="tag" title="agent_type">${esc(e.agent_type)}</span>` : ''}
+      <span class="t">${fmtT(e._t)} UTC</span>${tagOf(a) ? `<span class="tagpill" style="--tc:${esc(tagOf(a).color)}" title="Tag">${esc(tagOf(a).label)}</span>` : ''}${e.source ? `<span class="tag" title="source">${esc(e.source)}</span>` : ''}${e._c ? `<button class="tag chan" title="Open a tab with everything that happened in this channel (${e._c.n.toLocaleString()} events)">${esc(e._c.key)}</button>` : ''}${e.tool ? `<span class="tag tool" title="${esc(e.tool)}">${esc(e.tool)}</span>` : ''}
+      <span class="tools sp">${pr}<button class="pin${a?.pinned ? ' on' : ''}" title="${a?.pinned ? 'Unpin from' : 'Pin to'} the incident (p)">${icon('pin')}</button><button class="tg${a?.tag ? ' on' : ''}" title="${tagOf(a) ? `Tag: ${esc(tagOf(a).label)}` : 'Tag'}" style="--tc:${tagOf(a) ? esc(tagOf(a).color) : 'none'}">${icon('tag')}</button><button class="cm${a?.comment ? ' on' : ''}" title="Comment (c)">${icon('comment')}</button></span></div>
+    ${a?.comment ? `<div class="comment" title="Click to edit">${esc(a.comment)}</div>` : ''}
+    ${e.reasoning ? `<details class="cot"${$('showCot').checked ? ' open' : ''}><summary>reasoning</summary><div class="body">${md(e.reasoning)}</div></details>` : ''}
+    <div class="text">${e.text ? md(e.text) : '<span class="small">(no text)</span>'}</div></div>`;
+}
+// The detail pane is one long list in the chosen order, built around the focused event and extended
+// as you scroll: CHUNK more events whenever an end comes within two screens, at most MAX_ROWS at once.
+const CHUNK = 40, MAX_ROWS = 400;
+let rows = [], rowsTab = null;  // event indexes in the list, top to bottom, and the tab they were built for
+function walk(i, d, n) { const out = []; for (let j = i; out.length < n && (j = stepFrom(j, d)) >= 0;) out.push(j); return out; }
+function rowHTML(i) {  // a block, after a note on the time (and events skipped) since the one before it
+  const p = stepFrom(i, -1); let g = '';
+  if (p >= 0) {
+    const dt = E[i]._t - E[p]._t, skipped = i - p - 1, sub = ctxBy !== 'all' && skipped;
+    if (dt > 5 * 60e3 || sub) g = `<div class="gap">${span(dt)} later${sub ? ` · ${skipped.toLocaleString()} events ${ctxBy === 'agent' ? 'by others' : 'elsewhere'} in between` : ''}</div>`;
+  }
+  return `<div class="row" data-i="${i}">${g}${blockHTML(i, i === focus)}</div>`;
+}
+function rowsFrag(list) {
+  const t = document.createElement('template'); t.innerHTML = list.map(rowHTML).join('');
+  const q = $('search').value.trim() || tabs[tabCur].q; if (q) markText(t.content, q);
+  return t.content;
+}
+const rowEl = i => $('blocks').querySelector(`.row[data-i="${i}"]`);
+function onScreen() {  // the rows in view, as event indexes
+  const pane = $('detail').getBoundingClientRect(), top = pane.top + $('dbar').offsetHeight, out = [];
+  for (const el of $('blocks').children) { if (!el.dataset.i) continue; const r = el.getBoundingClientRect(); if (r.bottom > top && r.top < pane.bottom) out.push(+el.dataset.i); else if (out.length) break; }
+  return out;
+}
+function grow(d) {  // CHUNK more events at the top (d < 0) or bottom (d > 0); past MAX_ROWS, drop as many from the other end
+  if (!rows.length) return false;
+  const add = walk(d < 0 ? rows[0] : rows[rows.length - 1], d, CHUNK); if (!add.length) return false;
+  const box = $('blocks'), pane = $('detail');
+  if (d < 0) { add.reverse(); const h = box.offsetHeight; box.prepend(rowsFrag(add)); pane.scrollTop += box.offsetHeight - h; rows = add.concat(rows); }
+  else { box.append(rowsFrag(add)); rows = rows.concat(add); }
+  const extra = rows.length - MAX_ROWS;
+  if (extra > 0) {
+    const els = [...box.children]; 
+    if (d < 0) { els.slice(-extra).forEach(el => el.remove()); rows = rows.slice(0, -extra); }
+    else { const h = box.offsetHeight; els.slice(0, extra).forEach(el => el.remove()); pane.scrollTop -= h - box.offsetHeight; rows = rows.slice(extra); }
+  }
+  return true;
+}
+function fill() {  // keep two screens of events loaded above and below what is on screen
+  const pane = $('detail'), room = pane.clientHeight * 2;
+  for (let n = 0; n < 5 && pane.scrollTop < room && grow(-1); n++);
+  for (let n = 0; n < 5 && pane.scrollHeight - pane.scrollTop - pane.clientHeight < room && grow(1); n++);
+}
+let fillRaf = 0;
+$('detail').addEventListener('scroll', () => { if (!fillRaf) fillRaf = requestAnimationFrame(() => { fillRaf = 0; fill(); draw(); }); }, { passive: true });
+function buildList(anchor, nBefore = CHUNK, nAfter = CHUNK) {
+  rows = [...walk(anchor, -1, nBefore).reverse(), anchor, ...walk(anchor, 1, nAfter)]; rowsTab = tabs[tabCur];
+  $('blocks').replaceChildren(rowsFrag(rows));
+}
+function showPos() {
+  const r = tabs[tabCur].ref, inCh = r ? ` · ${(r.idxs.indexOf(focus) + 1).toLocaleString()} of ${r.n.toLocaleString()} ${ctxBy === 'agent' ? 'by' : ctxBy === 'search' ? 'matching' : ctxBy === 'tag' ? 'tagged' : 'in'} ${r.name ?? r.key}` : '';
+  $('pos').textContent = `event ${(focus + 1).toLocaleString()} of ${E.length.toLocaleString()}${inCh}`;
+}
+function centerFocus() {  // center the focused block; if it is too tall for that, keep its top (and a peek of the block before) on screen
+  const el = $('blocks').querySelector('.blk.focus'); if (!el) return;
+  const pane = $('detail'), bar = $('dbar').offsetHeight, room = pane.clientHeight - bar;
+  pane.scrollTop += el.getBoundingClientRect().top - pane.getBoundingClientRect().top - bar - Math.max(56, (room - el.offsetHeight) / 2);
+}
+function keepPlace(i, fn) {  // run fn without moving row i on screen
+  const pane = $('detail'), y = rowEl(i)?.getBoundingClientRect().top;
+  fn();
+  const el = rowEl(i); if (y != null && el) pane.scrollTop += el.getBoundingClientRect().top - y;
+}
+function renderDetail(scroll = true) {  // scroll: a fresh list centered on the focused event; else the same place, fresh content
+  const box = $('blocks');
+  if (focus < 0 || !E.length) { rows = []; box.innerHTML = '<div class="empty">No events.</div>'; return; }
+  const t = tabs[tabCur];
+  if (t.ref && !t.ref.n) { rows = []; rowsTab = t; $('pos').textContent = ''; box.innerHTML = `<div class="empty">${t.ref.name ? 'No matching events.' : 'Results show up here as you type a text, or add channels or agents, above.'}</div>`; return; }
+  const top = scroll || rowsTab !== tabs[tabCur] || !rows.some(rowEl) ? null : onScreen()[0] ?? focus;
+  if (top == null) { buildList(focus); centerFocus(); }
+  else { const k = Math.max(0, rows.indexOf(top)); keepPlace(top, () => buildList(top, k, Math.max(CHUNK, rows.length - k - 1))); }
+  showPos(); fill();
+}
+function setFocus(i, scroll = true) {
+  if (i == null || i < 0 || i >= E.length) return;
+  const old = focus; focus = i; centerOn(i); focusLane(); revealFocus = true;
+  if (!inTab(i)) { saveTab(); tabCur = 0; ctxBy = 'all'; renderTabs(); }  // an event outside the open tab: back to all events
+  if (rowsTab === tabs[tabCur] && rowEl(i)) {  // already in the list: move the focus there, without rebuilding
+    keepPlace(i, () => {
+      for (const j of new Set([old, i])) { const el = rowEl(j)?.querySelector('.blk'); if (!el) continue;
+        el.outerHTML = blockHTML(j, j === i); const q = $('search').value.trim() || tabs[tabCur].q; if (q) markText(rowEl(j), q); }
+    });
+    showPos(); if (scroll) centerFocus(); fill();
+  } else renderDetail(scroll);
+  draw(); updateURL(); renderTags(); markStory();
+}
+$('blocks').addEventListener('click', ev => {
+  const el = ev.target.closest('.blk'), t = ev.target; if (!el || t.closest('details, textarea')) return;
+  const i = +el.dataset.i, pr = t.closest('.pr');
+  if (t.closest('.pin')) togglePin(i);
+  else if (t.closest('.tg')) openTagMenu(i, t.closest('.tg'));
+  else if (t.closest('.cm, .comment')) editComment(i);
+  else if (t.closest('.chan')) openTab('channel', E[i]._c, i);
+  else if (t.closest('.who')) openTab('agent', E[i]._a, i);
+  else if (pr) setPriority(i, +pr.dataset.p);
+  else if (i !== focus) setFocus(i, false);
+});
+function updateURL() {
+  if (!DS) return;
+  const p = new URLSearchParams({ dataset: DS.id }); if (incId) p.set('incident', incId); if (tabChannel()) p.set('channel', tabChannel().key);
+  if (focus >= 0) p.set('event', E[focus].event_id);
+  history.replaceState(null, '', '?' + p);
+}
+// Tabs over the event list: "All events", plus one per agent or channel (opened from a block's name or channel tag),
+// and search tabs (opened with +).
+// Each tab keeps its own open event and scroll position.
+// A tab: {by, base: its own events {name|key, idxs, n}, ctx: context around them, ref: base plus context (what the list shows),
+// view: a custom view's definition (by 'view'), p: a search's parameters (by 'search'), focus, top: the event at the top of the screen, off: its offset}
+let tabs = [{ by: 'all' }], tabCur = 0;
+const lowerIdx = (idxs, i) => { let lo = 0, hi = idxs.length; while (lo < hi) { const m = (lo + hi) >> 1; idxs[m] < i ? lo = m + 1 : hi = m; } return lo; };
+const hasIdx = (idxs, i) => idxs[lowerIdx(idxs, i)] === i;
+const inTab = i => { const t = tabs[tabCur]; return !t.ref || hasIdx(t.ref.idxs, i); };
+function resetTabs() { tabs = [{ by: 'all' }]; tabCur = 0; ctxBy = 'all'; rows = []; rowsTab = null; renderTabs(); }
+function renderTabs() {
+  $('tabs').innerHTML = tabs.map((t, k) => `<button class="tab${k === tabCur ? ' on' : ''}" data-k="${k}" title="${t.ref ? `${esc(t.ref.name ?? t.ref.key)} · ${t.ref.n.toLocaleString()} events${ctxOn(t.ctx) ? ` (with context: ${ctxLabel(t.ctx)})` : ''}` : 'Every event in the dataset'}">` +
+    (t.ref ? `<span class="k">${t.by}</span><span class="nm">${esc(t.ref.name || t.ref.key || 'new')}</span>${t.by === 'view' ? '<span class="ed" title="Edit this view">✎</span>' : ''}<span class="x" title="Close tab">×</span>` : '<span class="nm">All events</span>') + '</button>').join('') +
+    '<button class="tab add" id="tabAdd" title="New search tab: a text, channels and agents (More options in it: pins, tags, sources)">+</button>';
+  renderSearchPanel(); renderChannels(); renderCtxCtl();  // the open channel tab's chip is highlighted
+}
+function saveTab() {
+  const t = tabs[tabCur], top = onScreen()[0]; t.focus = focus;
+  if (top != null) { t.top = top; t.off = rowEl(top).getBoundingClientRect().top - $('detail').getBoundingClientRect().top; }
+}
+function switchTab(k) {
+  if (k === tabCur || !tabs[k]) return;
+  const t = tabs[k];
+  if (t.by === 'view') { t.base = viewRef(t.view); applyCtx(t); }  // a view follows the latest pins and tags each time it is opened
+  if (t.ref && !t.ref.n && t.by !== 'search') return status('This view has no events right now');
+  saveTab(); tabCur = k; ctxBy = t.by; renderTabs();
+  if (t.focus != null) focus = t.focus;
+  if (t.ref?.n && !inTab(focus)) { focus = t.ref.idxs[Math.min(lowerIdx(t.ref.idxs, focus), t.ref.n - 1)]; t.top = null; }
+  if (t.top == null || !inTab(t.top)) renderDetail();
+  else { buildList(t.top); const pane = $('detail'); pane.scrollTop += rowEl(t.top).getBoundingClientRect().top - pane.getBoundingClientRect().top - t.off; showPos(); fill(); }
+  centerOn(focus); draw(); updateURL();
+}
+function openTab(by, ref, i, view) {  // the tab for an agent, a channel, a tag or a view (opened if new), on event i
+  if (!ref?.idxs.length) return;
+  const keyed = by === 'tag' || by === 'view';
+  let k = tabs.findIndex(t => t.by === by && (t.base === ref || keyed && t.base.key === ref.key));
+  if (k < 0) k = tabs.push({ by, base: ref, view, ctx: normCtx() }) - 1;
+  else if (keyed) { tabs[k].base = ref; if (view) tabs[k].view = view; }  // reopening refreshes a tag's or a view's events
+  applyCtx(tabs[k]);
+  if (k !== tabCur) { saveTab(); tabCur = k; ctxBy = by; }
+  renderTabs(); if (by === 'view') saveViews();
+  const r = tabs[k].ref;
+  setFocus(i ?? r.idxs.find(j => j >= focus) ?? r.idxs[r.idxs.length - 1]);  // by default, the first event at or after the open one
+}
+function closeTab(k) {
+  if (!k || !tabs[k]) return;
+  if (tabs[k].by === 'view' && !confirm(`Close and delete the view "${tabs[k].ref.name}"?`)) return;
+  if (k === tabCur) { const was = tabCur; switchTab(k - 1); if (tabCur === was) { saveTab(); tabCur = 0; ctxBy = 'all'; renderDetail(); } }
+  const view = tabs[k].by === 'view'; tabs.splice(k, 1); if (tabCur > k) tabCur--; renderTabs(); if (view) saveViews();
+}
+$('tabs').addEventListener('click', ev => {
+  const b = ev.target.closest('.tab'); if (!b) return;
+  if (b.id === 'tabAdd') return newSearchTab();
+  const k = +b.dataset.k;
+  if (ev.target.closest('.x')) closeTab(k); else if (ev.target.closest('.ed')) openBuilder(k); else switchTab(k);
+});
+
+// Search tabs (+): a text, channels and agents to filter by, in a panel above the results that collapses to one line.
+// The results are the tab's event list, rebuilt from the first match whenever the parameters change.
+function newSearchTab() {
+  saveTab(); tabCur = tabs.push({ by: 'search', p: { q: '', chans: [], agents: [] }, ctx: normCtx() }) - 1; tabs[tabCur].base = searchRef('', [], []); applyCtx(tabs[tabCur]); ctxBy = 'search';
+  renderTabs(); renderDetail(); $('spQ').focus();
+}
+const sortedIdxs = rs => rs.length === 1 ? rs[0].idxs : rs.flatMap(r => r.idxs).sort((x, y) => x - y);
+function searchRef(q, ags, chs) {  // events matching text q (if any) by one of agents ags (if any) in one of channels chs (if any)
+  const rx = q ? rxOf(q) : null, A = new Set(ags), C = new Set(chs), idxs = [];
+  if (q || ags.length || chs.length) {
+    const ok = i => { const e = E[i]; return (!A.size || A.has(e._a)) && (!C.size || C.has(e._c)) && (!rx || (e.text && rx.test(e.text)) || (e.reasoning && rx.test(e.reasoning)) || (e.tool && rx.test(e.tool))); };
+    const src = chs.length ? sortedIdxs(chs) : ags.length ? sortedIdxs(ags) : null;
+    if (src) { for (const i of src) if (ok(i)) idxs.push(i); } else for (let i = 0; i < E.length; i++) if (ok(i)) idxs.push(i);
+  }
+  const few = (xs, f) => xs.length > 2 ? `${f(xs[0])} +${xs.length - 1}` : xs.map(f).join(', ');
+  const name = [q && `“${q}”`, ags.length && `by ${few(ags, a => a.name)}`, chs.length && `in ${few(chs, c => c.key)}`].filter(Boolean).join(' ');
+  return { name, idxs, n: idxs.length };
+}
+function applySearch() {
+  const t = tabs[tabCur]; if (!t.p) return;
+  const q = t.p.q.trim(); t.q = q || undefined; t.base = searchRef(q, t.p.agents, t.p.chans); applyCtx(t); t.top = null; rowsTab = null;
+  renderTabs();
+  if (t.ref.n) setFocus(t.ref.idxs[0]); else renderDetail();
+}
+function renderSearchPanel() {
+  const t = tabs[tabCur], p = t.p; $('sp').classList.toggle('hidden', !p); if (!p) return;
+  $('sp').classList.toggle('shut', !!t.shut); $('spArrow').textContent = (t.shut ? '▸' : '▾') + ' Search';
+  if ($('spQ').value !== p.q) $('spQ').value = p.q;
+  const any = p.q.trim() || p.chans.length || p.agents.length;
+  $('spSum').textContent = !any ? 'Type a text, or add channels or agents' : `${t.ref.n.toLocaleString()} matching event${t.ref.n === 1 ? '' : 's'}${t.shut ? ' · ' + t.ref.name : ''}`;
+  for (const f of document.querySelectorAll('#sp .cin')) f.querySelector('.chips').innerHTML = p[f.dataset.kind].map((r, k) =>
+    `<span class="sfc" title="${esc(r.name ?? r.key)}"><span class="nm">${esc(r.name ?? r.key)}</span><span class="x" data-k="${k}" title="Remove">×</span></span>`).join('');
+}
+$('spHead').onclick = () => { const t = tabs[tabCur]; t.shut = !t.shut; renderSearchPanel(); };
+let spDeb = 0;
+$('spQ').oninput = e => { tabs[tabCur].p.q = e.target.value; clearTimeout(spDeb); spDeb = setTimeout(applySearch, 200); };
+$('spQ').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(spDeb); applySearch(); } else if (e.key === 'Escape') e.target.blur(); };
+// The channel and agent fields: chips for the chosen ones, and suggestions (by name, among those that go with the other field) as you type.
+function suggest(f) {
+  const p = tabs[tabCur].p, kind = f.dataset.kind, ql = f.querySelector('input').value.trim().toLowerCase(), chosen = new Set(p[kind]);
+  const list = kind === 'chans'
+    ? channels.filter(c => !chosen.has(c) && c.key.toLowerCase().includes(ql) && (!p.agents.length || p.agents.some(a => c.agents.has(a))))
+    : agents.filter(a => !chosen.has(a) && (a.name.toLowerCase().includes(ql) || a.key.toLowerCase().includes(ql)) && (!p.chans.length || p.chans.some(c => c.agents.has(a))));
+  f._items = list.slice(0, 30); f._sel = Math.min(f._sel || 0, Math.max(0, f._items.length - 1));
+  const box = f.querySelector('.sug'); box.classList.remove('hidden');
+  box.innerHTML = f._items.map((r, k) => `<div class="nti${k === f._sel ? ' sel' : ''}" data-k="${k}"><span class="nm">${esc(r.name ?? r.key)}</span><span class="n">${r.n.toLocaleString()} event${r.n === 1 ? '' : 's'}</span></div>`).join('') ||
+    `<div class="small" style="padding:4px 6px">No ${kind === 'chans' ? 'channel' : 'agent'} matches${(kind === 'chans' ? p.agents : p.chans).length ? ` (among those that go with the chosen ${kind === 'chans' ? 'agents' : 'channels'})` : ''}.</div>`;
+  box.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+}
+function choose(f, k) {
+  const r = f._items?.[k]; if (!r) return;
+  tabs[tabCur].p[f.dataset.kind].push(r); f.querySelector('input').value = ''; f._sel = 0; f.querySelector('.sug').classList.add('hidden'); applySearch();
+}
+for (const f of document.querySelectorAll('#sp .cin')) {
+  const inp = f.querySelector('input'), box = f.querySelector('.sug');
+  f.addEventListener('mousedown', e => { if (e.target !== inp) e.preventDefault(); if (e.target.closest('.sfc .x, .sug')) return; inp.focus(); suggest(f); });
+  f.addEventListener('click', e => {
+    const x = e.target.closest('.sfc .x'), it = e.target.closest('.nti');
+    if (x) { tabs[tabCur].p[f.dataset.kind].splice(+x.dataset.k, 1); applySearch(); }
+    else if (it) choose(f, +it.dataset.k);
+  });
+  inp.addEventListener('focus', () => suggest(f));
+  inp.addEventListener('blur', () => box.classList.add('hidden'));
+  inp.addEventListener('input', () => { f._sel = 0; suggest(f); });
+  inp.addEventListener('keydown', e => {
+    const p = tabs[tabCur].p[f.dataset.kind];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!box.classList.contains('hidden')) f._sel = Math.max(0, Math.min((f._items?.length || 1) - 1, (f._sel || 0) + (e.key === 'ArrowDown' ? 1 : -1))); suggest(f); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!box.classList.contains('hidden')) choose(f, f._sel || 0); }
+    else if (e.key === 'Backspace' && !inp.value && p.length) { p.pop(); applySearch(); }
+    else if (e.key === 'Escape') inp.blur();
+  });
+}
+$('tabs').addEventListener('auxclick', ev => { const b = ev.target.closest('.tab'); if (b && ev.button === 1) closeTab(+b.dataset.k); });
+$('evPrev').onclick = () => setFocus(stepFrom(focus, -1)); $('evNext').onclick = () => setFocus(stepFrom(focus, 1));
+
+// ---------- context: the events around each event in a tab ----------
+// ctx: {before, after: how many events each side, from: 'channel' (the same channel), 'agent' (the same agent) or 'any'
+// (the dataset's order, skipping hidden agents)}.
+const normCtx = c => ({ before: Math.max(0, +(c?.before ?? c?.n) || 0), after: Math.max(0, +(c?.after ?? c?.n) || 0),
+  from: ['channel', 'agent', 'any'].includes(c?.from) ? c.from : 'channel' });
+const ctxOn = c => !!(c && (c.before || c.after));
+const FROM_LABEL = { channel: 'same channel', agent: 'same agent', any: 'anywhere' };
+function ctxLabel(c) {
+  if (!ctxOn(c)) return '';
+  return `${c.before} before · ${c.after} after · ${FROM_LABEL[c.from]}`;
+}
+function withContext(base, ctx) {
+  if (!ctxOn(ctx) || !base) return base;
+  const keep = new Uint8Array(E.length), added = new Set();
+  const take = j => { if (!keep[j]) { keep[j] = 1; added.add(j); } };
+  for (const i of base.idxs) keep[i] = 1;
+  for (const i of base.idxs) {
+    const e = E[i], seq = ctx.from === 'channel' ? e._c?.idxs : ctx.from === 'agent' ? e._a.idxs : null;
+    if (ctx.from !== 'any' && !seq) continue;  // no channel to take neighbours from
+    for (const [d, want] of [[-1, ctx.before], [1, ctx.after]]) {
+      if (!want) continue;
+      if (seq) { const p = lowerIdx(seq, i); for (let q = p + d, c = 0; c < want && q >= 0 && q < seq.length; q += d, c++) take(seq[q]); }
+      else for (let j = i + d, c = 0; c < want && j >= 0 && j < E.length; j += d) if (!hidden.has(E[j]._a.key)) { take(j); c++; }
+    }
+  }
+  const idxs = []; for (let i = 0; i < E.length; i++) if (keep[i]) idxs.push(i);
+  return { key: base.key, name: base.name, idxs, n: idxs.length, ctxSet: added };
+}
+function applyCtx(t) { t.ref = withContext(t.base, t.ctx); }
+function renderCtxCtl() {  // the event list bar: "Context +" (none yet), or what is added, with × to remove it
+  const t = tabs[tabCur]; $('ctxCtl').classList.toggle('hidden', !t?.base?.n); if (!t?.base?.n) return;
+  const on = ctxOn(t.ctx);
+  $('ctxBtn').textContent = on ? `Context: ${ctxLabel(t.ctx)}` : 'Context +';
+  $('ctxBtn').classList.toggle('on', on); $('ctxClear').classList.toggle('hidden', !on);
+}
+function setCtx(c) {  // give the open tab context c (or none), keeping the open event when it is still listed
+  const t = tabs[tabCur]; if (!t?.base) return;
+  t.ctx = normCtx(c); applyCtx(t);
+  if (!inTab(focus)) focus = t.ref.idxs[Math.min(lowerIdx(t.ref.idxs, focus), t.ref.n - 1)];  // the open event was context that went away
+  renderTabs(); renderDetail(); draw(); updateURL(); if (t.by === 'view') saveViews();
+}
+// The context pop-up, opened from "Context +" in the event list bar.
+let cx = null, cxDeb = 0;  // {c: the draft ctx}
+function openCtx() {
+  const t = tabs[tabCur]; if (!t?.base) return;
+  cx = { c: structuredClone(normCtx(ctxOn(t.ctx) ? t.ctx : { before: 3, after: 3, from: t.ctx?.from })) };
+  $('cxBefore').value = cx.c.before; $('cxAfter').value = cx.c.after;
+  $('cxTitle').textContent = `Add context to “${t.ref.name ?? t.ref.key}”`; $('cxRemove').classList.toggle('hidden', !ctxOn(t.ctx));
+  $('cxBack').classList.remove('hidden'); renderCtxBox(); $('cxBefore').focus(); $('cxBefore').select();
+}
+function closeCtx() { $('cxBack').classList.add('hidden'); cx = null; }
+function renderCtxBox() {
+  const c = cx.c;
+  $('cxBack').querySelectorAll('[data-from]').forEach(b => b.classList.toggle('on', b.dataset.from === c.from));
+  countCtx();
+}
+function countCtx() {
+  clearTimeout(cxDeb);
+  cxDeb = setTimeout(() => {
+    if (!cx) return; const t = tabs[tabCur], r = withContext(t.base, cx.c), n = r?.ctxSet?.size || 0;
+    $('cxCount').textContent = ctxOn(cx.c) ? `Adds ${n.toLocaleString()} event${n === 1 ? '' : 's'} around ${t.base.n.toLocaleString()}` : 'Nothing to add: set events before or after';
+  }, 150);
+}
+$('cxBefore').oninput = $('cxAfter').oninput = () => { if (!cx) return; cx.c.before = Math.max(0, Math.min(500, +$('cxBefore').value || 0)); cx.c.after = Math.max(0, Math.min(500, +$('cxAfter').value || 0)); countCtx(); };
+$('cxBack').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !cx) return;
+  if (b.dataset.from) { cx.c.from = b.dataset.from; renderCtxBox(); }
+});
+$('cxApply').onclick = () => { if (!cx) return; const c = cx.c; closeCtx(); setCtx(c); };
+$('cxRemove').onclick = () => { closeCtx(); setCtx(null); };
+$('cxCancel').onclick = $('cxClose').onclick = closeCtx;
+$('cxBack').addEventListener('mousedown', e => { if (e.target === $('cxBack')) closeCtx(); });
+$('cxBack').addEventListener('keydown', e => { if (e.key === 'Escape') closeCtx(); else if (e.key === 'Enter' && e.target.matches('input[type=number]')) $('cxApply').click(); });
+$('showCot').onchange = () => { try { localStorage.setItem('showCot', $('showCot').checked ? '1' : ''); } catch {} renderDetail(false); };
+try { $('showCot').checked = localStorage.getItem('showCot') === '1'; } catch {}
+$('ctxBtn').onclick = openCtx; $('ctxClear').onclick = () => setCtx(null);
+
+const matchesText = (e, rx) => (e.text && rx.test(e.text)) || (e.reasoning && rx.test(e.reasoning)) || (e.tool && rx.test(e.tool));
+// ---------- custom views ----------
+// A view combines parts: the open incident's pinned events, its tags, agents, channels, and text. Within a part, any
+// item counts (any of the checked agents); across parts, match 'all' needs every part, 'any' needs one.
+// Views are saved in this browser (localStorage, per dataset), never in the incident file. A view lives as long as its tab.
+const newView = () => ({ id: 'v' + Date.now().toString(36), name: '', match: 'all', pins: false, tags: [], agents: [], channels: [], sources: [], text: '' });
+function viewParts(v) {  // the active parts, each a list of event indexes (no index twice within one part)
+  const parts = [], acts = (INC?.actions || []).filter(a => a.pinned && byId.has(String(a.event_id)));
+  if (v.pins && INC) parts.push(acts.map(a => byId.get(String(a.event_id))));
+  if (v.tags.length && INC) { const s = new Set(v.tags); parts.push(acts.filter(a => s.has(a.tag)).map(a => byId.get(String(a.event_id)))); }
+  if (v.agents.length) parts.push(v.agents.map(k => agents.find(a => a.key === k)).filter(Boolean).flatMap(a => a.idxs));
+  if (v.channels.length) parts.push(v.channels.map(k => chanByKey.get(k)).filter(Boolean).flatMap(c => c.idxs));
+  if (v.sources.length) { const s = new Set(v.sources); parts.push(sourceList().filter(x => s.has(x.key)).flatMap(x => x.idxs)); }
+  if (v.text.trim()) { const rx = rxOf(v.text.trim()), out = []; for (let i = 0; i < E.length; i++) if (matchesText(E[i], rx)) out.push(i); parts.push(out); }
+  return parts;
+}
+function viewName(v) {
+  if (v.name.trim()) return v.name.trim();
+  const list = (xs, one, many) => xs.length > 2 ? `${xs.length} ${many}` : xs.join(', ');
+  const tagNames = v.tags.map(id => INC?.tags.find(t => t.id === id)?.label || id);
+  const bits = [v.pins && 'pins', tagNames.length && `tagged ${list(tagNames, 'tag', 'tags')}`,
+    v.agents.length && `by ${list(v.agents.map(k => agents.find(a => a.key === k)?.name || k), 'agent', 'agents')}`,
+    v.channels.length && `in ${list(v.channels, 'channel', 'channels')}`, v.sources.length && `from ${list(v.sources, 'source', 'sources')}`, v.text.trim() && `“${v.text.trim()}”`].filter(Boolean);
+  return bits.join(v.match === 'all' ? ' · ' : ' or ') || 'Empty view';
+}
+function viewRef(v) {
+  const parts = viewParts(v), idxs = [];
+  if (parts.length) {
+    const cnt = new Uint8Array(E.length); for (const p of parts) for (const i of p) cnt[i]++;
+    const need = v.match === 'all' ? parts.length : 1;
+    for (let i = 0; i < E.length; i++) if (cnt[i] >= need) idxs.push(i);
+  }
+  return { key: v.id, name: viewName(v), idxs, n: idxs.length };
+}
+// Saving: an ordered list of {...view, ctx} for the dataset.
+const viewsKey = () => `incidentViewer.views.${DS?.id}`;
+function saveViews() {
+  if (!DS) return;
+  try { localStorage.setItem(viewsKey(), JSON.stringify(tabs.filter(t => t.by === 'view').map(t => ({ ...t.view, ctx: t.ctx })))); } catch {}
+}
+function restoreViews() {  // reopen the saved views as tabs, without leaving the open tab
+  let saved = []; try { saved = JSON.parse(localStorage.getItem(viewsKey()) || '[]'); } catch {}
+  for (const s of Array.isArray(saved) ? saved : []) {
+    const { ctx, ...v } = { ...newView(), ...s };
+    v.agents = v.agents.filter(k => agents.some(a => a.key === k)); v.channels = v.channels.filter(k => chanByKey.has(k)); v.sources = v.sources.filter(k => sourceList().some(x => x.key === k));  // gone from the data: dropped
+    const t = { by: 'view', view: v, base: viewRef(v), ctx: normCtx(ctx) }; applyCtx(t); tabs.push(t);
+  }
+  renderTabs();
+}
+// The builder: opened from + (a new view) or a view tab's ✎ (that view).
+let vb = null, vbDeb = 0;  // {k: the tab being edited or null, v: the draft}
+function openBuilder(k, fromSearch) {  // k: a view tab to edit; fromSearch: a search tab to turn into a view (its text, channels and agents carried over)
+  vb = { k: k ?? null, from: fromSearch ?? null, v: k != null ? structuredClone(tabs[k].view) : newView() };
+  const p = fromSearch != null ? tabs[fromSearch]?.p : null;
+  if (p) Object.assign(vb.v, { text: p.q.trim(), agents: p.agents.map(a => a.key), channels: p.chans.map(c => c.key) });
+  $('vbName').value = vb.v.name; $('vbText').value = vb.v.text; $('vbAgQ').value = ''; $('vbChQ').value = ''; $('vbSrcQ').value = '';
+  $('vbOpen').textContent = k != null ? 'Save view' : 'Open view';
+  $('vbTitle').textContent = k != null ? 'Edit view' : 'Custom view';
+  $('vbBack').classList.remove('hidden'); renderBuilder(); $('vbName').focus();
+}
+function closeBuilder() { $('vbBack').classList.add('hidden'); vb = null; }
+document.body.appendChild($('vbBack')); document.body.appendChild($('cxBack'));  // a page-level pop-up, not trapped under the event list's sticky bar
+$('vbClose').onclick = closeBuilder;
+$('vbBack').addEventListener('mousedown', e => { if (e.target === $('vbBack')) closeBuilder(); });  // a click outside the box
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && vb) closeBuilder(); });
+const vbChip = (group, ...rest) => chipHTML(vb.v[group], group, ...rest);
+const chipHTML = (sel, group, key, label, n, color) => `<label class="vbc"><input type="checkbox" data-g="${group}" data-v="${esc(key)}"${sel.includes(key) ? ' checked' : ''}>` +
+  `${color ? `<span class="sw" style="background:${esc(color)}"></span>` : ''}${esc(label)}${n != null ? ` <span class="n">${n.toLocaleString()}</span>` : ''}</label>`;
+function vbAgentsShown() { const q = $('vbAgQ').value.trim().toLowerCase(); return agents.filter(a => !q || a.name.toLowerCase().includes(q) || a.key.toLowerCase().includes(q)); }
+// Sources (where an event came from: a platform, a wiki...), with their events; built once per dataset.
+let srcCache = { E: null, list: [] };
+function sourceList() {
+  if (srcCache.E !== E) { const m = new Map(); E.forEach((e, i) => { if (e.source) (m.get(e.source) || m.set(e.source, []).get(e.source)).push(i); });
+    srcCache = { E, list: [...m].map(([key, idxs]) => ({ key, idxs, n: idxs.length })).sort((a, b) => b.n - a.n) }; }
+  return srcCache.list;
+}
+function vbSourcesShown() { const q = $('vbSrcQ').value.trim().toLowerCase(); return sourceList().filter(x => !q || x.key.toLowerCase().includes(q)); }
+function vbChannelsShown() {
+  const q = $('vbChQ').value.trim().toLowerCase(), picked = channels.filter(c => vb.v.channels.includes(c.key));
+  return picked.concat(channels.filter(c => !vb.v.channels.includes(c.key) && (!q || c.key.toLowerCase().includes(q))).slice(0, MAX_CHANNELS_SHOWN));
+}
+function renderBuilder() {
+  const v = vb.v, pinned = (INC?.actions || []).filter(a => a.pinned && byId.has(String(a.event_id))).length;
+  $('vb').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === v.match));
+  $('vbInc').innerHTML = INC ? `<div class="vbh"><b>This incident</b></div><div class="vbl">` +
+    `<label class="vbc"><input type="checkbox" data-g="pins"${v.pins ? ' checked' : ''}>📌 Pinned events <span class="n">${pinned}</span></label>` +
+    INC.tags.map(t => vbChip('tags', t.id, t.label, INC.actions.filter(a => a.pinned && a.tag === t.id).length, t.color)).join('') + '</div>' : '';
+  $('vbAgents').innerHTML = vbAgentsShown().map(a => vbChip('agents', a.key, a.name, a.n, a.bg)).join('') || '<span class="small">No agent matches</span>';
+  $('vbSources').innerHTML = vbSourcesShown().map(x => vbChip('sources', x.key, x.key, x.n)).join('') || '<span class="small">' + (sourceList().length ? 'No source matches' : 'This dataset has no sources') + '</span>';
+  $('vbChannels').innerHTML = vbChannelsShown().map(c => vbChip('channels', c.key, c.key, c.n)).join('') || '<span class="small">No channel matches</span>';
+  countBuilder();
+}
+function countBuilder() {
+  clearTimeout(vbDeb);
+  vbDeb = setTimeout(() => {
+    if (!vb) return; const r = viewRef(vb.v);
+    $('vbCount').textContent = `${r.n.toLocaleString()} event${r.n === 1 ? '' : 's'} · ${r.name}`;
+    $('vbOpen').disabled = !r.n;
+  }, 120);
+}
+$('vb').addEventListener('change', e => {
+  const g = e.target.dataset.g; if (!g || !vb) return;
+  if (g === 'pins') vb.v.pins = e.target.checked;
+  else { const k = e.target.dataset.v, xs = vb.v[g]; e.target.checked ? xs.includes(k) || xs.push(k) : xs.splice(xs.indexOf(k), 1); }
+  countBuilder();
+});
+$('vb').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !vb) return;
+  if (b.dataset.m) { vb.v.match = b.dataset.m; renderBuilder(); }
+  else if (b.dataset.sel || b.dataset.unsel) {
+    const g = b.dataset.sel || b.dataset.unsel, shown = (g === 'agents' ? vbAgentsShown() : g === 'sources' ? vbSourcesShown() : vbChannelsShown()).map(x => x.key);
+    vb.v[g] = b.dataset.sel ? [...new Set(vb.v[g].concat(shown))] : vb.v[g].filter(k => !shown.includes(k));
+    renderBuilder();
+  }
+});
+$('vbAgQ').oninput = $('vbChQ').oninput = $('vbSrcQ').oninput = () => vb && renderBuilder();
+$('vbName').oninput = () => { if (vb) { vb.v.name = $('vbName').value; countBuilder(); } };
+$('vbText').oninput = () => { if (vb) { vb.v.text = $('vbText').value; countBuilder(); } };
+$('vbCancel').onclick = closeBuilder;
+$('vb').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input[type=text], input[type=search]') && !$('vbOpen').disabled) $('vbOpen').click(); });
+$('vbOpen').onclick = () => {
+  if (!vb) return; const v = { ...vb.v, name: vb.v.name.trim(), text: vb.v.text.trim() }, ref = viewRef(v), k = vb.k, vb_from = vb.from;
+  if (!ref.n) return;
+  closeBuilder();
+  if (k != null && tabs[k]) {  // an edited view: same tab, new events
+    const t = tabs[k]; t.view = v; t.base = ref; applyCtx(t); t.top = null; saveViews();
+    if (k === tabCur) { if (!inTab(focus)) focus = t.ref.idxs[Math.min(lowerIdx(t.ref.idxs, focus), t.ref.n - 1)]; renderTabs(); renderDetail(); draw(); updateURL(); }
+    else { renderTabs(); switchTab(k); }
+  } else if (vb_from != null && tabs[vb_from]?.by === 'search') {  // the search tab becomes this view, in the same place
+    const t = tabs[vb_from]; delete t.p; delete t.q; delete t.shut; Object.assign(t, { by: 'view', view: v, base: ref, ctx: t.ctx || normCtx(), top: null }); applyCtx(t); saveViews();
+    if (vb_from === tabCur) { ctxBy = 'view'; if (!inTab(focus)) focus = t.ref.idxs[Math.min(lowerIdx(t.ref.idxs, focus), t.ref.n - 1)]; rowsTab = null; renderTabs(); renderDetail(); draw(); updateURL(); }
+    else { renderTabs(); switchTab(vb_from); }
+  } else openTab('view', ref, undefined, v);
+};
+$('spMore').onclick = () => openBuilder(undefined, tabCur);
+
+// ---------- story ----------
+// An incident's story (incident.story) is a list of cells, shown on the right:
+//   {"id": "c-1a2b3c", "author": "human" | "agent", "format": "markdown" | "html", "body": text or list of lines,
+//    "locked": true (agents must not change it), "collapsed": true, "title": "..." (else the cell's first heading)}
+// People write cells here, in markdown, with a rich-text editor; a new cell is locked, and the lock button in its
+// header unlocks it. The server records the text of locked cells (incidents/.locked/), and check_incidents.py fails
+// if anything else changes, unlocks or removes them. Agents write "html" cells into the file (charts, tables),
+// unlocked unless a person locks them. incident.story_style (CSS,
+// optional) applies to every cell. Event links open that event on the left: [text](event:<id>) in markdown,
+// data-event="<id>" on any HTML element (SVG shapes too). Hovering one previews the event. The cells render in a
+// shadow root, so story CSS stays inside; scripts and on* handlers are stripped. The host has data-theme="light"
+// or "dark" (the viewer's effective theme): a story's own colors switch with :host([data-theme="dark"]) { ... }.
+const STORY_CSS = `:host { display: block; color: var(--ink); font-size: 13.5px; line-height: 1.55; }
+h1, h2, h3, h4 { line-height: 1.25; margin: 1.1em 0 .4em; font-weight: 600; } h1 { font-size: 18px; } h2 { font-size: 15.5px; } h3 { font-size: 14px; } h4 { font-size: 13px; }
+p, ul, ol, blockquote, table, figure { margin: 0 0 .7em; } ul, ol { padding-left: 1.4em; } li { margin: .15em 0; }
+blockquote { margin-left: 0; padding: 2px 10px; border-left: 3px solid var(--line2); color: var(--muted); }
+code { font-family: var(--mono); font-size: 12px; background: var(--hover); padding: 0 3px; border-radius: 2px; }
+pre { font-family: var(--mono); font-size: 12px; background: var(--hover); padding: 6px 9px; border-radius: 3px; overflow-x: auto; } pre code { background: none; padding: 0; }
+table { border-collapse: collapse; font-size: 12.5px; } th, td { border: 1px solid var(--line); padding: 2px 7px; text-align: left; vertical-align: top; } th { background: var(--chrome); font-weight: 600; }
+img, svg { max-width: 100%; height: auto; } figcaption { font-size: 12px; color: var(--muted); }
+a { color: var(--accent); }
+[data-event] { cursor: pointer; }
+a[data-event], span[data-event] { color: var(--accent); text-decoration: none; white-space: nowrap; border-bottom: 1px dotted currentColor; border-radius: 2px; }
+a[data-event]::before, span[data-event]::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 3px 1px 1px; border-radius: 50%; background: var(--tc, var(--muted)); vertical-align: middle; }
+a[data-event]:hover, span[data-event]:hover { background: var(--hover); }
+.cur:is(a, span)[data-event] { background: color-mix(in srgb, var(--focus) 26%, transparent); outline: 1px solid var(--focus); }
+svg .cur[data-event], svg [data-event].cur * { stroke: var(--focus); stroke-width: 2.5px; }
+.bad[data-event] { color: #d64545; text-decoration: line-through wavy; cursor: help; }
+/* cells */
+.sv-cell { border-bottom: 1px solid var(--line); padding: 4px 0 8px; font-family: var(--sans); }
+.sv-cell.editing { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.sv-head { display: flex; align-items: center; gap: 6px; min-height: 26px; font: 12px var(--sans); color: var(--muted); user-select: none; }
+.sv-fold { flex: none; width: 18px; height: 20px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0; border-radius: 3px; }
+.sv-fold:hover { background: var(--hover); color: var(--ink); }
+.sv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.sv-cell.shut .sv-title { color: var(--ink); font-weight: 600; font-size: 13px; }
+.sv-lock { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 3px; background: none; color: var(--muted); cursor: pointer; opacity: .45; }
+.sv-lock svg { display: block; width: 13px; height: 13px; overflow: visible; }
+.sv-lock:hover { background: var(--hover); opacity: 1; }
+.sv-lock.on { color: var(--ink); opacity: 1; }
+.sv-tools { flex: none; display: flex; gap: 1px; opacity: 0; transition: opacity .1s; }
+.sv-cell:hover .sv-tools, .sv-cell:focus-within .sv-tools { opacity: 1; }
+.sv-cell.editing .sv-tools { display: none; }
+.sv-tools button, .sv-bar button { border: 1px solid transparent; background: none; color: var(--ink); cursor: pointer; padding: 0 5px; border-radius: 3px; font: 12px var(--sans); line-height: 20px; min-width: 22px; }
+.sv-tools button:hover:not(:disabled), .sv-bar button:hover { border-color: var(--line2); background: var(--hover); }
+.sv-tools button:disabled { opacity: .3; cursor: default; }
+.sv-cell.shut .sv-body { display: none; }
+.sv-body { padding: 0 2px 0 24px; min-width: 0; }
+.sv-body > :first-child { margin-top: 0; }
+.sv-body > :is(h1, h2):first-child { border-top: 0; padding-top: 0; }
+.sv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; position: sticky; top: 0; z-index: 2; margin: 2px 0 8px 24px; padding: 2px; background: var(--panel); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+.sv-bar .sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--line2); }
+.sv-bar .sp { flex: 1; }
+.sv-bar .on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line2)); }
+.sv-bar .done { background: var(--accent); color: #fff; font-weight: 600; }
+.sv-bar .done:hover { background: var(--accent); filter: brightness(1.1); }
+.sv-body[contenteditable] { outline: 1px dashed var(--line2); outline-offset: 4px; border-radius: 2px; min-height: 3em; cursor: text; }
+.sv-body[contenteditable]:focus { outline: 2px solid var(--accent); }
+.sv-src { display: block; width: calc(100% - 24px); margin-left: 24px; min-height: 180px; box-sizing: border-box; padding: 6px 8px; font: 12px/1.5 var(--mono); color: var(--ink); background: var(--field); border: 1px solid var(--line2); border-radius: 3px; resize: vertical; tab-size: 2; }
+.sv-src:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.sv-hint { margin: 6px 0 0 24px; font: 11.5px var(--sans); color: var(--muted); }
+.sv-add { display: block; margin: 10px 0 0 24px; padding: 3px 10px; border: 1px dashed var(--line2); border-radius: 3px; background: none; color: var(--accent); cursor: pointer; font: 12px var(--sans); }
+.sv-add:hover { border-color: var(--accent); }
+.sv-empty { color: var(--muted); font: 13px var(--sans); }`;
+let storyOpen = true, storyEditing = null;  // storyEditing: {id, isNew, mode: 'rich' | 'src', dirty} while a cell is being edited
+try { storyOpen = localStorage.getItem('storyOpen') !== '0'; const w = localStorage.getItem('storyW'); if (w) document.body.style.setProperty('--story-w', w); } catch {}
+const storyRoot = $('storyBody').attachShadow({ mode: 'open' });
+function cleanHTML(html) {  // a fragment with no scripts, frames or event handlers
+  const t = document.createElement('template'); t.innerHTML = html;
+  t.content.querySelectorAll('script, iframe, frame, frameset, object, embed, base, meta, link').forEach(n => n.remove());
+  for (const el of t.content.querySelectorAll('*')) for (const at of [...el.attributes]) {
+    if (/^on/i.test(at.name) || (/(^|:)(href|src|action|formaction)$/i.test(at.name) && /^\s*javascript:/i.test(at.value))) el.removeAttribute(at.name);
+  }
+  return t.content;
+}
+const storyTheme = () => { $('storyBody').dataset.theme = isDark() ? 'dark' : 'light'; };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', storyTheme);
+
+// The cells of the open incident. A story from before cells (one HTML string or list of lines) becomes one agent cell.
+function storyCells() {
+  if (!INC) return [];
+  const s = INC.story;
+  if (s == null || s === '') return INC.story = [];
+  if (typeof s === 'string' || (Array.isArray(s) && s.length && s.every(x => typeof x === 'string')))
+    INC.story = [{ id: 'c-1', author: 'agent', format: 'html', body: Array.isArray(s) ? s : s.split('\n') }];
+  return Array.isArray(INC.story) ? INC.story : (INC.story = []);
+}
+const cellLocked = c => c.locked ?? c.author === 'human';  // cells people wrote before the lock button existed count as locked
+const LOCK_ON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 7.25V5.25a3.25 3.25 0 0 1 6.5 0v2" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/></svg>',
+  LOCK_OFF = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 7.25V5.25a3.25 3.25 0 0 1 6.3-1.1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor"/></svg>';
+const cellBody = c => Array.isArray(c.body) ? c.body.join('\n') : String(c.body ?? '');
+const cellHTML = c => c.format === 'markdown' ? mdToHTML(cellBody(c)) : cellBody(c);
+const newCellId = () => 'c-' + Math.random().toString(36).slice(2, 8);
+const storyStyle = () => (Array.isArray(INC?.story_style) ? INC.story_style.join('\n') : String(INC?.story_style ?? '')).replace(/<\/style/gi, '<\\/style');
+
+// ---- markdown: what people write in cells. #–#### headings, - and 1. lists, > quotes, ``` code, **bold**, *italic*,
+// `code`, [text](https://…) and [text](event:<event_id>). A single newline is a line break.
+function mdInline(s) {
+  const codes = [];
+  let h = esc(s).replace(/`([^`\n]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  h = h.replace(/\[([^\]\n]+)\]\(event:([^)\s]+)\)/g, '<a data-event="$2">$1</a>')
+       .replace(/\[([^\]\n]+)\]\(((?:https?:|\?|#)[^)\s]*)\)/g, '<a href="$2">$1</a>')
+       .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+       .replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, '$1<i>$2</i>')
+       .replace(/(^|[^\w])_([^_\s][^_\n]*?)_(?!\w)/g, '$1<i>$2</i>');
+  return h.replace(/\u0000(\d+)\u0000/g, (m, k) => `<code>${codes[k]}</code>`);
+}
+const MD_LIST = /^\s*([-*+]|\d+[.)])\s+/, MD_BLOCK = /^(#{1,4}\s|```|>|\s*([-*+]|\d+[.)])\s)/;
+function mdToHTML(src) {
+  const L = String(src).replace(/\r/g, '').split('\n'), out = [];
+  for (let i = 0; i < L.length;) {
+    const l = L[i]; let m;
+    if (!l.trim()) { i++; continue; }
+    if (/^```/.test(l)) { const b = []; i++; while (i < L.length && !/^```/.test(L[i])) b.push(L[i++]); i++; out.push(`<pre><code>${esc(b.join('\n'))}</code></pre>`); continue; }
+    if ((m = l.match(/^(#{1,4})\s+(.*)$/))) { out.push(`<h${m[1].length}>${mdInline(m[2])}</h${m[1].length}>`); i++; continue; }
+    if (MD_LIST.test(l)) {
+      const ol = /^\s*\d/.test(l), items = [];
+      while (i < L.length && MD_LIST.test(L[i])) {
+        let t = L[i++].replace(MD_LIST, '');
+        while (i < L.length && /^\s{2,}\S/.test(L[i]) && !MD_LIST.test(L[i])) t += ' ' + L[i++].trim();
+        items.push(`<li>${mdInline(t)}</li>`);
+      }
+      out.push(`<${ol ? 'ol' : 'ul'}>${items.join('')}</${ol ? 'ol' : 'ul'}>`); continue;
+    }
+    if (/^>/.test(l)) { const b = []; while (i < L.length && /^>/.test(L[i])) b.push(L[i++].replace(/^>\s?/, '')); out.push(`<blockquote>${mdToHTML(b.join('\n'))}</blockquote>`); continue; }
+    const b = []; while (i < L.length && L[i].trim() && (!b.length || !MD_BLOCK.test(L[i]))) b.push(L[i++]);
+    out.push(`<p>${b.map(mdInline).join('<br>')}</p>`);
+  }
+  return out.join('\n');
+}
+// The rich editor's DOM back to markdown.
+const MD_BLOCKS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'pre', 'table', 'thead', 'tbody', 'tr', 'section', 'figure', 'header']);
+function htmlToMD(root) {
+  const inner = n => [...n.childNodes].map(inl).join('');
+  const wrap = (x, m) => { const t = x.trim(); return t ? x.replace(t, m + t + m) : x; };  // markers hug the text, not its spaces
+  function inl(n) {
+    if (n.nodeType === 3) return n.nodeValue.replace(/\s+/g, ' ');
+    if (n.nodeType !== 1) return '';
+    const t = n.tagName.toLowerCase();
+    if (t === 'br') return '\n';
+    if (n.dataset.event) return `[${inner(n).trim() || 'event'}](event:${n.dataset.event})`;
+    if (t === 'a' && n.getAttribute('href')) { const h = n.getAttribute('href'); return `[${inner(n).trim()}](${h.startsWith('#event=') ? 'event:' + h.slice(7) : h})`; }
+    if (t === 'b' || t === 'strong') return wrap(inner(n), '**');
+    if (t === 'i' || t === 'em') return wrap(inner(n), '*');
+    if (t === 'code') return '`' + n.textContent + '`';
+    if (MD_BLOCKS.has(t)) return '\n' + inner(n) + '\n';
+    return inner(n);
+  }
+  const blocks = [];
+  (function walk(n, pre) {
+    let run = '';
+    const flush = () => { const t = run.split('\n').map(l => l.trim()).join('\n').trim(); if (t) blocks.push(t.split('\n').map(l => pre + l).join('\n')); run = ''; };
+    for (const c of n.childNodes) {
+      const t = c.nodeType === 1 ? c.tagName.toLowerCase() : '';
+      if (!MD_BLOCKS.has(t)) { run += inl(c); continue; }
+      flush();
+      if (/^h[1-6]$/.test(t)) blocks.push(pre + '#'.repeat(Math.min(4, +t[1])) + ' ' + inner(c).replace(/\s+/g, ' ').trim());
+      else if (t === 'ul' || t === 'ol') { let k = 1; blocks.push([...c.children].map(li => pre + (t === 'ol' ? `${k++}. ` : '- ') + inner(li).replace(/\s+/g, ' ').trim()).join('\n')); }
+      else if (t === 'blockquote') walk(c, pre + '> ');
+      else if (t === 'pre') blocks.push(pre + '```\n' + c.textContent.replace(/\n$/, '') + '\n```');
+      else walk(c, pre);
+    }
+    flush();
+  })(root, '');
+  return blocks.join('\n\n');
+}
+
+// ---- rendering
+function cellTitle(c, frag) {
+  return c.title || frag.querySelector('h1, h2, h3, h4')?.textContent.replace(/\s+/g, ' ').trim() || snip(frag.textContent, 70) || '(empty cell)';
+}
+function cellEl(c, k, n) {
+  const sec = document.createElement('section'), frag = cleanHTML(cellHTML(c));
+  sec.className = 'sv-cell' + (c.collapsed ? ' shut' : ''); sec.dataset.k = k; sec.dataset.id = c.id;
+  const locked = cellLocked(c);
+  sec.innerHTML = `<div class="sv-head"><button class="sv-fold" data-a="fold" title="${c.collapsed ? 'Expand' : 'Collapse'}">${c.collapsed ? '▸' : '▾'}</button>` +
+    `<span class="sv-title" data-a="fold" title="${c.collapsed ? 'Expand' : 'Collapse'}">${esc(cellTitle(c, frag))}</span>` +
+    `<button class="sv-lock${locked ? ' on' : ''}" data-a="lock" aria-pressed="${locked}" title="${locked ? 'Locked: agents must not change this cell. Click to unlock.' : 'Unlocked: agents may edit this cell. Click to lock it.'}">${locked ? LOCK_ON : LOCK_OFF}</button>` +
+    `<span class="sv-tools"><button data-a="up" title="Move up"${k === 0 ? ' disabled' : ''}>↑</button><button data-a="down" title="Move down"${k === n - 1 ? ' disabled' : ''}>↓</button>` +
+    `<button data-a="edit" title="Edit this cell">Edit</button><button data-a="add" title="Add a cell below">+</button><button data-a="del" title="Delete this cell">×</button></span></div><div class="sv-body"></div>`;
+  sec.lastChild.append(frag);
+  return sec;
+}
+function renderStory() {
+  const show = !!INC && storyOpen; storyTheme();
+  $('storyBtn').classList.toggle('hidden', !INC); $('storyBtn').classList.toggle('on', show);
+  document.body.classList.toggle('has-story', show); $('story').classList.toggle('hidden', !show);
+  if (!show || storyEditing) return;  // while a cell is edited, its DOM is left alone
+  const cells = storyCells(), top = $('storyBody').scrollTop;
+  storyRoot.innerHTML = `<style>${STORY_CSS}</style><style>${storyStyle()}</style>`;
+  cells.forEach((c, k) => storyRoot.append(cellEl(c, k, cells.length)));
+  if (!cells.length) storyRoot.append(cleanHTML(`<p class="sv-empty">No story yet. Add a cell to write one: markdown, with links to events.</p>`));
+  storyRoot.append(cleanHTML(`<button class="sv-add" data-a="append">+ Add a cell</button>`));  // (a shadow root has no insertAdjacentHTML)
+  let n = 0, bad = 0;
+  for (const el of storyRoot.querySelectorAll('[data-event], a[href^="#event="]')) {
+    if (!el.dataset.event) el.dataset.event = el.getAttribute('href').slice(7);
+    if (el.matches('a')) { el.removeAttribute('href'); el.setAttribute('role', 'link'); el.tabIndex = 0; }
+    el.removeAttribute('title');  // the event preview replaces it
+    for (const t of el.querySelectorAll(':scope > title')) t.remove();
+    const i = byId.get(String(el.dataset.event)); n++;
+    if (i == null) { el.classList.add('bad'); bad++; continue; }
+    const tg = tagOf(actById.get(E[i].event_id)); if (tg) el.style.setProperty('--tc', tg.color);
+  }
+  for (const a of storyRoot.querySelectorAll('a[href]')) if (/^https?:/i.test(a.getAttribute('href'))) { a.target = '_blank'; a.rel = 'noopener'; }
+  $('storyBody').scrollTop = top;
+  const shut = cells.filter(c => c.collapsed).length;
+  $('storyInfo').textContent = [cells.length ? `${cells.length} cell${cells.length === 1 ? '' : 's'}` : '', n ? `${n} event link${n === 1 ? '' : 's'}` : '', bad ? `${bad} broken` : ''].filter(Boolean).join(' · ');
+  $('storyFold').textContent = shut === cells.length && cells.length ? 'Expand all' : 'Collapse all'; $('storyFold').disabled = !cells.length;
+  markStory();
+}
+function markStory() {  // highlight the links to the open event
+  if (!INC || !storyOpen) return;
+  const id = focus >= 0 ? E[focus].event_id : null;
+  storyRoot.querySelectorAll('.sv-cell:not(.editing) [data-event]').forEach(el => el.classList.toggle('cur', el.dataset.event === id));
+}
+
+// ---- hovering an event link: who, where, when, and the start of the message
+const evTip = document.createElement('div'); evTip.id = 'evTip'; evTip.className = 'hidden'; document.body.append(evTip);
+function showEvTip(el, x, y) {
+  const i = byId.get(String(el.dataset.event));
+  if (i == null) evTip.innerHTML = `<b>Event not found</b><div class="m">${esc(el.dataset.event)} is not in this dataset.</div>`;
+  else {
+    const e = E[i], a = actById.get(e.event_id), tg = tagOf(a);
+    evTip.innerHTML = `<div class="h"><b>${esc(e._a.name)}</b>${e._c ? `<span class="c">${esc(e._c.key)}</span>` : e.source ? `<span class="c">${esc(e.source)}</span>` : ''}</div>` +
+      `<div class="s">${fmtT(e._t)} UTC${tg ? ` · <span class="tg" style="--tc:${esc(tg.color)}">${esc(tg.label)}</span>` : ''}${a?.pinned ? ` · P${a.priority}` : ' · not pinned'}</div>` +
+      `<div class="m">${esc(snip(e.text || e.reasoning || e.tool, 260))}</div>`;
+  }
+  evTip.classList.remove('hidden');
+  const w = evTip.offsetWidth, h = evTip.offsetHeight;
+  evTip.style.left = Math.max(8, Math.min(x + 12, innerWidth - w - 8)) + 'px';
+  evTip.style.top = (y + 16 + h > innerHeight - 8 ? y - h - 10 : y + 16) + 'px';
+}
+storyRoot.addEventListener('mouseover', ev => { const el = ev.target.closest?.('[data-event]'); if (el) showEvTip(el, ev.clientX, ev.clientY); else evTip.classList.add('hidden'); });
+storyRoot.addEventListener('mousemove', ev => { if (!evTip.classList.contains('hidden') && ev.target.closest?.('[data-event]')) showEvTip(ev.target.closest('[data-event]'), ev.clientX, ev.clientY); });
+$('storyBody').addEventListener('mouseleave', () => evTip.classList.add('hidden'));
+$('storyBody').addEventListener('scroll', () => evTip.classList.add('hidden'));
+storyRoot.addEventListener('focusin', ev => { const el = ev.target.closest?.('[data-event]'); if (el) { const r = el.getBoundingClientRect(); showEvTip(el, r.left, r.bottom - 10); } });
+storyRoot.addEventListener('focusout', () => evTip.classList.add('hidden'));
+
+// ---- clicks: event links, cell tools, the editor's toolbar
+function storyGo(ev) {
+  const el = ev.target.closest?.('[data-event]'); if (!el) return;
+  ev.preventDefault(); const i = byId.get(String(el.dataset.event)); if (i != null) setFocus(i);
+}
+storyRoot.addEventListener('mousedown', ev => { if (ev.target.closest?.('.sv-bar button')) ev.preventDefault(); });  // keep the editor's selection
+storyRoot.addEventListener('click', ev => {
+  const t = ev.target, sec = t.closest?.('.sv-cell');
+  if (sec?.classList.contains('editing')) {
+    if (t.closest('.sv-bar')) return barAction(t.closest('button'), sec);
+    if (t.closest('[data-event]')) ev.preventDefault();  // a link inside the editor is text to edit, not a jump
+    return;
+  }
+  const a = t.closest?.('[data-a]')?.dataset.a;
+  if (a === 'append') return addCell(storyCells().length);
+  if (a && sec) { ev.preventDefault(); return cellAction(a, +sec.dataset.k); }
+  storyGo(ev);
+});
+storyRoot.addEventListener('keydown', ev => {
+  const ed = ev.target.closest?.('[contenteditable], textarea');
+  if (!ed) { if (ev.key === 'Enter') storyGo(ev); return; }
+  ev.stopPropagation();  // typing is not the viewer's shortcuts
+  if (ev.key === 'Escape') { ev.preventDefault(); if (!storyEditing?.dirty || confirm('Discard your changes to this cell?')) finishEdit(false); }
+  else if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); finishEdit(true); }
+  else if (ev.key === 'Tab' && ed.matches('textarea')) { ev.preventDefault(); ed.setRangeText('  ', ed.selectionStart, ed.selectionEnd, 'end'); }
+});
+storyRoot.addEventListener('input', () => { if (storyEditing) storyEditing.dirty = true; });
+addEventListener('beforeunload', ev => { if (storyEditing?.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+
+function cellAction(a, k) {
+  const cells = storyCells(), c = cells[k]; if (!c) return;
+  if (a === 'fold') { if (c.collapsed) delete c.collapsed; else c.collapsed = true; return changed(); }
+  if (a === 'lock') { c.locked = !cellLocked(c); return changed(); }
+  if (a === 'up' || a === 'down') { const j = a === 'up' ? k - 1 : k + 1; if (j < 0 || j >= cells.length) return; [cells[k], cells[j]] = [cells[j], cells[k]]; return changed(); }
+  if (a === 'edit') return startEdit(k);
+  if (a === 'add') return addCell(k + 1);
+  if (a === 'del') {
+    const title = cellTitle(c, cleanHTML(cellHTML(c)));
+    if (confirm(`Delete the cell “${snip(title, 60)}”?${cellLocked(c) ? ' It is locked.' : ''}`)) { cells.splice(k, 1); changed(); }
+  }
+}
+function addCell(k) {
+  if (!ensureIncident()) return;
+  if (storyEditing) finishEdit(true);
+  storyCells().splice(k, 0, { id: newCellId(), author: 'human', format: 'markdown', locked: true, body: [] });
+  startEdit(k, true);
+}
+const BAR = `<div class="sv-bar"><button data-c="b" title="Bold (⌘/Ctrl+B)"><b>B</b></button><button data-c="i" title="Italic (⌘/Ctrl+I)"><i>I</i></button><button data-c="code" title="Code">&lt;/&gt;</button><span class="sep"></span>` +
+  `<button data-c="h2" title="Heading">H2</button><button data-c="h3" title="Small heading">H3</button><button data-c="p" title="Normal text">¶</button><button data-c="ul" title="Bullet list">•</button><button data-c="ol" title="Numbered list">1.</button><button data-c="quote" title="Quote">❝</button><span class="sep"></span>` +
+  `<button data-c="event" title="Link the selected text to the event open on the left">Link event</button><button data-c="link" title="Link the selected text to a web address">Link</button>` +
+  `<span class="sp"></span><button data-c="src" title="Show the cell's source (markdown or HTML)">Source</button><button data-c="cancel" title="Cancel (Esc)">Cancel</button><button data-c="done" class="done" title="Save (⌘/Ctrl+Enter)">Done</button></div>`;
+function startEdit(k, isNew = false) {
+  if (storyEditing) finishEdit(true);
+  const cells = storyCells(), c = cells[k]; if (!c) return;
+  renderStory();  // a clean copy of every cell, then this one becomes the editor
+  storyEditing = { id: c.id, isNew, mode: 'rich', dirty: false };
+  const sec = storyRoot.querySelector(`.sv-cell[data-id="${CSS.escape(c.id)}"]`);
+  sec.classList.add('editing'); sec.classList.remove('shut');
+  sec.querySelector('.sv-head').insertAdjacentHTML('afterend', BAR);
+  const body = sec.querySelector('.sv-body'); body.replaceChildren(cleanHTML(cellHTML(c)));
+  body.contentEditable = 'true';
+  sec.insertAdjacentHTML('beforeend', `<div class="sv-hint">${c.format === 'markdown' ? 'Saved as markdown.' : 'An HTML cell.'} Links to events: open the event on the left, select text here, then Link event. ⌘/Ctrl+Enter saves, Esc cancels.</div>`);
+  if (c.format === 'html' && /<(svg|table|style)\b/i.test(cellBody(c))) toggleSource(sec);  // charts and tables are safer to edit as source
+  else { body.focus(); const r = document.createRange(); r.selectNodeContents(body); r.collapse(false); const s = storySel(); s.removeAllRanges(); s.addRange(r); }
+  sec.scrollIntoView({ block: 'nearest' });
+}
+const storySel = () => storyRoot.getSelection ? storyRoot.getSelection() : document.getSelection();
+function barAction(b, sec) {
+  if (!b) return;
+  const c = b.dataset.c, body = sec.querySelector('.sv-body'), ex = (cmd, v) => document.execCommand(cmd, false, v);
+  if (c === 'done') return finishEdit(true);
+  if (c === 'cancel') { if (!storyEditing.dirty || confirm('Discard your changes to this cell?')) finishEdit(false); return; }
+  if (c === 'src') return toggleSource(sec);
+  if (storyEditing.mode !== 'rich') return;
+  body.focus();
+  const text = storySel().toString();
+  if (c === 'b') ex('bold'); else if (c === 'i') ex('italic');
+  else if (c === 'h2' || c === 'h3' || c === 'p') ex('formatBlock', c);
+  else if (c === 'quote') ex('formatBlock', 'blockquote');
+  else if (c === 'ul') ex('insertUnorderedList'); else if (c === 'ol') ex('insertOrderedList');
+  else if (c === 'code') ex('insertHTML', `<code>${esc(text || 'code')}</code>`);
+  else if (c === 'link') { const u = prompt('Link to (https://…):', 'https://'); if (u && /^(https?:|\?|#)/.test(u)) ex('insertHTML', `<a href="${esc(u)}">${esc(text || u)}</a>`); }
+  else if (c === 'event') {
+    if (focus < 0) return alert('Open an event on the left first.');
+    const e = E[focus];
+    ex('insertHTML', `<a data-event="${esc(e.event_id)}">${esc(text || `${e._a.name} ${fmtT(e._t).slice(11)}`)}</a>&#8203;`);
+  }
+  storyEditing.dirty = true;
+}
+function toggleSource(sec) {
+  const ed = storyEditing, c = storyCells().find(x => x.id === ed.id), body = sec.querySelector('.sv-body');
+  const btn = sec.querySelector('.sv-bar [data-c="src"]');
+  if (ed.mode === 'rich') {
+    const ta = document.createElement('textarea'); ta.className = 'sv-src'; ta.spellcheck = false;
+    ta.value = ed.dirty ? (c.format === 'markdown' ? htmlToMD(body) : body.innerHTML) : cellBody(c);
+    body.classList.add('hidden-src'); body.style.display = 'none'; body.after(ta); ed.mode = 'src'; btn.classList.add('on'); ta.focus();
+  } else {
+    const ta = sec.querySelector('.sv-src'), v = ta.value;
+    body.replaceChildren(cleanHTML(c.format === 'markdown' ? mdToHTML(v) : v)); body.style.display = ''; ta.remove();
+    ed.mode = 'rich'; ed.src = v; btn.classList.remove('on'); body.focus();
+  }
+  sec.querySelectorAll('.sv-bar button:not([data-c="src"], [data-c="done"], [data-c="cancel"])').forEach(b => b.disabled = ed.mode === 'src');
+}
+function finishEdit(keep) {
+  const ed = storyEditing; if (!ed) return;
+  const cells = storyCells(), k = cells.findIndex(x => x.id === ed.id), c = cells[k], sec = storyRoot.querySelector('.sv-cell.editing');
+  storyEditing = null; evTip.classList.add('hidden');
+  if (!c) return renderStory();
+  let v = null;
+  if (keep && sec) {
+    if (ed.mode === 'src') v = sec.querySelector('.sv-src').value;
+    else if (ed.dirty || ed.src != null) { const body = sec.querySelector('.sv-body'); body.removeAttribute('contenteditable'); v = c.format === 'markdown' ? htmlToMD(body) : body.innerHTML.replace(/​/g, ''); }
+    if (v != null) v = v.replace(/​/g, '').replace(/\s+$/, '');
+  }
+  if (v == null || v === cellBody(c)) {  // nothing to save
+    if (ed.isNew && !cellBody(c).trim()) cells.splice(k, 1);
+    return renderStory();
+  }
+  if (ed.isNew && !v.trim()) { cells.splice(k, 1); return renderStory(); }
+  c.body = v.split('\n'); c.author = 'human';  // the lock stays as the person set it
+  changed();
+}
+$('storyBtn').onclick = () => { storyOpen = !storyOpen; try { localStorage.setItem('storyOpen', storyOpen ? '1' : '0'); } catch {} renderStory(); draw(); };
+$('storyAdd').onclick = () => addCell(storyCells().length);
+$('storyFold').onclick = () => {
+  const cells = storyCells(), all = cells.every(c => c.collapsed);
+  if (storyEditing) finishEdit(true);
+  cells.forEach(c => { if (all) delete c.collapsed; else c.collapsed = true; }); changed();
+};
+(() => {  // drag the tags panel's left edge to resize it
+  const g = $('tagGrip'), row = $('tlRow');
+  try { const w = localStorage.getItem('tagW'); if (w) row.style.setProperty('--tag-w', w); } catch {}
+  g.onpointerdown = e => {
+    g.setPointerCapture(e.pointerId); g.classList.add('drag');
+    g.onpointermove = m => { const w = Math.max(160, Math.min(row.clientWidth * 0.6, row.getBoundingClientRect().right - m.clientX)); row.style.setProperty('--tag-w', w + 'px'); draw(); };
+    g.onpointerup = () => { g.onpointermove = null; g.classList.remove('drag'); try { localStorage.setItem('tagW', row.style.getPropertyValue('--tag-w')); } catch {} };
+  };
+  g.ondblclick = () => { row.style.removeProperty('--tag-w'); try { localStorage.removeItem('tagW'); } catch {} draw(); };
+})();
+(() => {  // drag the story's left edge to resize it
+  const g = $('storyGrip'), main = document.body;
+  g.onpointerdown = e => {
+    g.setPointerCapture(e.pointerId); g.classList.add('drag');
+    g.onpointermove = m => { const w = Math.max(260, Math.min(innerWidth * 0.7, innerWidth - m.clientX)); main.style.setProperty('--story-w', w + 'px'); draw(); };
+    g.onpointerup = () => { g.onpointermove = null; g.classList.remove('drag'); try { localStorage.setItem('storyW', main.style.getPropertyValue('--story-w')); } catch {} };
+  };
+  g.ondblclick = () => { main.style.removeProperty('--story-w'); try { localStorage.removeItem('storyW'); } catch {} draw(); };
+})();
+
+// ---------- side panel ----------
+function renderSide() {
+  if (!DS) return;
+  renderTags();
+  let h;
+  if (INC) h = '';
+  else {
+    const mine = incList.filter(x => !x.dataset || x.dataset === DS.id);
+    h = `<h2>Incidents <span class="small">(${mine.length})</span></h2>` +
+      (mine.length ? mine.map(x => `<button class="inc-card" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><span class="small">${x.from_to?.from ? esc(fmtT(parseT(x.from_to.from), false)) + ' UTC · ' : ''}${pinnedOf(x).length} pinned event${pinnedOf(x).length === 1 ? '' : 's'}</span></button>`).join('')
+        : `<div class="small">None yet. Pin an event (${icon('pin', 'inl')}) to start one.</div>`);
+  }
+  h += `<h2>Search results <span class="small" id="hitCount"></span></h2><div id="hitBox"><div class="small">Type in the search box to find events by text, reasoning, tool, agent, source or channel.</div></div>
+    ${channels.length ? `<h2>Channels <span class="small">(${channels.length.toLocaleString()} · events · agents)</span></h2>
+      <input id="chFilter" type="search" placeholder="Filter channels"><div class="legend" id="chanBox"></div>` : ''}
+    <h2>Agents <span class="small">(click to hide · events · with reasoning)</span></h2><div class="legend" id="legendBox"></div>
+    <h2>Keys</h2><div class="small">Timeline: scroll to zoom, drag to pan, click a dot to open it; scroll over the lane names to move through the lanes; a lane's funnel (next to its pin) hides its grey events, keeping the pinned and commented ones · <kbd>←</kbd> <kbd>→</kbd> previous / next event in the open tab · click an agent's name or a channel to open its tab, or <b>+</b> for a search tab (text, channels, agents; click its header to fold it) · middle-click a tab to close it · <kbd>p</kbd> pin · <kbd>1</kbd>–<kbd>9</kbd> priority · <kbd>⇧1</kbd>–<kbd>⇧9</kbd> tag (see the Tags panel) · <kbd>c</kbd> comment · <kbd>/</kbd> search · <kbd>j</kbd> <kbd>k</kbd> next / previous match. Times are UTC.</div>`;
+  $('side').innerHTML = h;
+  if (!INC) $('side').querySelectorAll('.inc-card').forEach(b => b.onclick = () => selectIncident(b.dataset.id));
+  if (channels.length) {
+    $('chFilter').value = chFilter;
+    $('chFilter').oninput = e => { chFilter = e.target.value; renderChannels(); };
+    $('chFilter').onkeydown = e => e.stopPropagation();
+  }
+  renderLegend(); renderChannels(); renderHits();
+}
+const MAX_CHANNELS_SHOWN = 150;
+function renderChannels() {  // the biggest channels, or those matching the filter; the open one always first
+  if (!$('chanBox')) return;
+  const cur = tabChannel(), q = chFilter.trim().toLowerCase();
+  const list = channels.filter(c => c !== cur && (!q || c.key.toLowerCase().includes(q)));
+  const shown = (cur ? [cur] : []).concat(list.slice(0, MAX_CHANNELS_SHOWN));
+  $('chanBox').innerHTML = shown.map(c => `<div class="chip${c === cur ? ' cur' : ''}" data-key="${esc(c.key)}" title="${esc(c.key)}"><span class="nm">${esc(c.key)}</span><span class="n">${c.n.toLocaleString()} · ${c.agents.size.toLocaleString()}</span></div>`).join('') +
+    (list.length > MAX_CHANNELS_SHOWN ? `<div class="small">${(list.length - MAX_CHANNELS_SHOWN).toLocaleString()} more; filter to find them.</div>` : '') +
+    (!shown.length ? '<div class="small">No channel matches.</div>' : '');
+  $('chanBox').querySelectorAll('.chip').forEach(el => el.onclick = () => openChannel(el.dataset.key, true));
+}
+function renderLegend() {
+  $('legendBox').innerHTML = agents.map(a => `<div class="chip${hidden.has(a.key) ? ' off' : ''}" data-key="${esc(a.key)}" title="${esc(a.type)}"><span class="sw" style="background:${a.bg}"></span>
+    <span class="nm">${esc(a.name)}</span><span class="n">${a.n.toLocaleString()} · ${a.cot.toLocaleString()}</span></div>`).join('');
+  $('legendBox').querySelectorAll('.chip').forEach(el => {
+    el.onclick = () => { const k = el.dataset.key; hidden.has(k) ? hidden.delete(k) : hidden.add(k); el.classList.toggle('off', hidden.has(k)); computeLanes(); runSearch(); renderDetail(false); draw(); };
+  });
+}
+
+// ---------- search ----------
+const rxOf = q => new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+function runSearch() {
+  const q = $('search').value.trim(); hits = []; hitCur = -1;
+  if (q && E.length) {
+    const rx = rxOf(q); let lo = 0, hi = E.length;
+    if ($('inView').checked) { const [t0, t1] = viewTimeRange(); lo = firstAtOrAfter(t0); hi = firstAtOrAfter(t1 + 1); }
+    for (let i = lo; i < hi; i++) { const e = E[i]; if (hidden.has(e._a.key)) continue;
+      if ((e.text && rx.test(e.text)) || (e.reasoning && rx.test(e.reasoning)) || (e.tool && rx.test(e.tool)) || rx.test(e._a.name) || (e.source && rx.test(e.source)) || (e._c && rx.test(e._c.key))) hits.push(i); }
+  }
+  $('searchCount').textContent = q ? `${hits.length.toLocaleString()} match${hits.length === 1 ? '' : 'es'}` : '';
+  $('hitNav').classList.toggle('hidden', !q);   // the ↑ ↓ match buttons only appear once something is searched
+  renderHits(); draw();
+}
+function renderHits() {
+  if (!$('hitBox')) return;
+  const q = $('search').value.trim();
+  $('hitCount').textContent = q ? `(${hits.length.toLocaleString()}${hits.length > MAX_HITS_SHOWN ? `, first ${MAX_HITS_SHOWN} listed` : ''})` : '';
+  if (!q) { $('hitBox').innerHTML = '<div class="small">Type in the search box to find events by text, reasoning, tool, agent, source or channel.</div>'; return; }
+  const rx = rxOf(q);
+  $('hitBox').innerHTML = hits.slice(0, MAX_HITS_SHOWN).map(i => {
+    const e = E[i], src = [e.text, e.reasoning, e.tool].find(s => s && rx.test(s)) || e.text || '', at = Math.max(0, src.search(rx) - 30);
+    return `<button class="hit" data-i="${i}" style="--c:${e._a.bg}"><span class="small">${fmtT(e._t).slice(5)} · ${esc(e._a.name)}</span><br>${at ? '…' : ''}${esc(snip(src.slice(at), 110))}</button>`;
+  }).join('') || '<div class="small">No matches.</div>';
+  $('hitBox').querySelectorAll('.hit').forEach(b => b.onclick = () => { hitCur = hits.indexOf(+b.dataset.i); setFocus(+b.dataset.i); showHit(); });
+  markText($('hitBox'), q);
+}
+function showHit() {
+  $('searchCount').textContent = `${hitCur + 1} / ${hits.length.toLocaleString()}`;
+  $('hitBox').querySelectorAll('.hit').forEach(b => b.classList.toggle('cur', +b.dataset.i === hits[hitCur]));
+  $('blocks').querySelector('.blk.focus mark')?.scrollIntoView({ block: 'center' });
+}
+function stepHit(d) {
+  if (!hits.length) return;
+  if (hitCur < 0) { let lo = 0, hi = hits.length; while (lo < hi) { const m = (lo + hi) >> 1; hits[m] < focus ? lo = m + 1 : hi = m; } hitCur = d > 0 ? (hits[lo] === focus ? lo : lo - 1) : lo; }
+  hitCur = (hitCur + d + hits.length) % hits.length;
+  setFocus(hits[hitCur]); showHit();
+}
+function markText(root, q) {
+  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement.closest('mark, summary, .tools, .comment, .pb') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const n of nodes) {
+    const s = n.nodeValue; rx.lastIndex = 0; if (!rx.test(s)) continue;
+    const frag = document.createDocumentFragment(); let last = 0; rx.lastIndex = 0; let m;
+    while ((m = rx.exec(s))) {
+      frag.append(s.slice(last, m.index));
+      const mk = document.createElement('mark'); mk.textContent = m[0]; frag.append(mk);
+      last = m.index + m[0].length; if (!m[0].length) rx.lastIndex++;
+    }
+    frag.append(s.slice(last)); n.replaceWith(frag);
+  }
+}
+let deb;
+$('search').oninput = () => { clearTimeout(deb); deb = setTimeout(() => { runSearch(); renderDetail(false); }, 250); };
+$('search').onkeydown = e => { if (e.key === 'Enter') { clearTimeout(deb); if (hitCur < 0) runSearch(); stepHit(e.shiftKey ? -1 : 1); } if (e.key === 'Escape') e.target.blur(); };
+$('inView').onchange = () => { runSearch(); renderDetail(false); };
+$('next').onclick = () => stepHit(1); $('prev').onclick = () => stepHit(-1);
+
+// ---------- wiring ----------
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey || focus < 0 || vb || cx) return;  // a pop-up is open
+  const k = e.key;
+  if (k === '/') { e.preventDefault(); $('search').focus(); }
+  else if (k === 'ArrowLeft') { e.preventDefault(); setFocus(stepFrom(focus, -1)); }
+  else if (k === 'ArrowRight') { e.preventDefault(); setFocus(stepFrom(focus, 1)); }
+  else if (k === 'j') stepHit(1); else if (k === 'k') stepHit(-1);
+  else if (k === 'p') togglePin(focus);
+  else if (k === 'c') { e.preventDefault(); editComment(focus); }
+  else if (e.shiftKey && /^Digit[1-9]$/.test(e.code)) { const t = INC?.tags[+e.code.slice(5) - 1]; if (t) setTag(focus, t.id); }
+  else if (/^[1-9]$/.test(k)) setPriority(focus, +k);
+});
+$('dsSel').onchange = e => openDataset(e.target.value);
+$('incSel').onchange = e => selectIncident(e.target.value);
+async function readFiles(files) {
+  for (const f of files) {
+    try {
+      const p = parseEvents(await f.text(), f.name);
+      if (p.incident) {  // an incident file: open it against the current dataset
+        const id = slug(f.name.replace(/\.[a-z]+$/i, '')); incList = incList.filter(x => x.id !== id);
+        incList.push({ id, name: p.incident.name || id, dataset: p.incident.dataset, from_to: p.incident.from_to, actions: p.incident.actions, local: p.incident });
+        if (DS) { fillSelectors(); await selectIncident(id); }
+      } else {
+        datasets = datasets.filter(d => d.id !== p.id).concat({ id: p.id, title: p.title, events: p.events.length, local: true });
+        setDataset(p.id, p.title, p.events); await loadIncidentList(); start();
+      }
+    } catch (e) { alert(`${f.name}: ${e.message}`); }
+  }
+}
+$('file').onchange = e => readFiles(e.target.files);
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); readFiles(e.dataTransfer.files); });
+$('theme').onclick = () => {
+  const r = document.documentElement; r.dataset.theme = isDark() ? 'light' : 'dark';
+  try { localStorage.setItem('theme', r.dataset.theme); } catch {}
+  storyTheme(); draw();
+};
+document.fonts?.ready.then(draw);  // the timeline is a canvas: repaint once the web font is in
+try { const t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+
+async function start(incident, event, channel) {  // a dataset has just been set
+  fillSelectors(); setScope('all'); resetTabs(); restoreViews(); renderSide();
+  if (incident && incList.some(x => x.id === incident)) await selectIncident(incident, event);
+  else setFocus(byId.get(String(event)) ?? 0);
+  if (channel && chanByKey.has(channel)) { if (byId.has(String(event))) focus = byId.get(String(event)); openChannel(channel, true); }
+}
+async function openDataset(id, incident, event, channel) {
+  try { await loadDataset(id); await start(incident, event, channel); }
+  catch (e) { $('blocks').innerHTML = `<div class="empty drop"><b>Could not load the dataset.</b><br><span class="small">${esc(e.message)}</span></div>`; }
+}
+(async () => {
+  const q = new URLSearchParams(location.search);
+  try {
+    const r = await fetch('data/index.json'); if (!r.ok) throw new Error(`data/index.json: HTTP ${r.status}`);
+    datasets = await r.json();
+    if (!datasets.length) throw new Error('data/index.json lists no datasets');
+    await openDataset(datasets.some(d => d.id === q.get('dataset')) ? q.get('dataset') : datasets[0].id, q.get('incident'), q.get('event'), q.get('channel'));
+  } catch (e) {
+    $('side').innerHTML = '<div class="small">No dataset loaded.</div>';
+    $('blocks').innerHTML = `<div class="empty drop"><p><b>Drop a dataset here</b> or use <i>Load files…</i></p>
+      <p class="small">A dataset is a JSON file with an <code>events</code> list of event blocks (or JSONL, one block per line). See <code>SPEC.md</code>.</p>
+      <p class="small">To serve the bundled data and save incidents, run <code>python3 serve.py</code>.<br>${esc(e.message)}</p></div>`;
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,930 @@
+{
+ "name": "A relay protocol stack is invented in ~20 h, copied by reading and re-derived elsewhere",
+ "incident_description": "Report claim 4: \"A protocol stack was invented in ~20 h (some parts took ~2 days to spread) and spread partly by reading, partly by re-derivation under shared incentives. One agent reused a random counter name it could only have read. Ideas copied well; details mutated and were re-derived.\" The story: on 16 June 2026 many cohorts of the same agent are taking a timed DataUSA quiz with identical question sequences. In the morning they invent a task-clock report (09:33) and a compact STATE5-XX token (10:18) so pollers can spot answers fast. In the evening, as cohorts go silent after round 5, they come to believe the final answer ends the session (first hint 20:22). The rule flips from 'post after answering' (20:46) to 'post BEFORE answering' (21:49). Within 12 minutes two agents propose termination-safe channels that need no wiki edit: a CGI log tail (21:57, never caught on) and a CounterAPI counter with an arbitrary name, sector61-state5-fast-9417 (22:01:54). Four seconds later the same counter name appears verbatim on another page; 27 s after that the Grocery family clones the idea under its own random name (grocery-g5-signal-7305). That pair is the core contrast: the idea copies, the details get made again. Details keep mutating: an XX5 bug fix (22:11) reaches Grocery after 33 min but is missing in the Transport lineage; overload brings a backup provider and cache-busting (00:50-01:21 Jun 17); heartbeats (00:19) take 44.5 h to reach 20 adopters; the 'horizon' proof (05:23 Jun 17) closes the ~20 h stack. On 17 Jun a test hit already contaminates a fresh counter. On 20 Jun the OECD family hits the same false-test failure and invents unique one-shot beacon keys again (R4OBSERVED / -ACTUAL / -SEEN variants) without citing 17 June. See also the incident r4-slovak-false-alarm. CAVEAT on the 'could only have read' event (22:06:02, OpenAIThread4ffeaMar12@3): the post is unsigned. This dataset attributes it to Apr19SectorRelay by 'shared_token', which is circular because the shared token is the counter name itself. Its wiki username (OpenAIStateWatcherMay17) and /16 (20.45) match the unsigned watcher post at 22:01:56, which supports the report's reading. But Apr19SectorRelay was itself pasting the URL onto other agents' pages at 22:03-22:04, and wiki usernames are a shared cookie (28% mismatch), so the author is not settled. Tags: blue = invents a protocol layer or fix; purple = asks for or follows the old 'answer first, then post STATE5-XX' rule; red = asks for or follows the new 'post BEFORE answering' rule (every STATE5 post stating an order is pinned at priority 4, so the flip around 21:50 on 16 June shows on the timeline); orange = re-derives it, so the idea returns with new or changed details. The two untagged events are context: the first termination belief (20:22) and the 20 June repeat of the false-test failure. Priorities: 4 = bulk norm posts; 1 = the moments the claim rests on (inventions, verbatim copy vs re-derived clone, re-invention on 20 Jun); 2 = spread and mutation evidence; 3 = context. Sources: findings/REPORT.md item 4; findings Qi-23, Qdiff-02, Qdiff-03, Qdiff-04, Qmab-05/Qvf-13, Qinherit-04.",
+ "dataset": "web-traces",
+ "from_to": {
+  "from": "2026-06-16T09:00:00Z",
+  "to": "2026-06-20T09:00:00Z"
+ },
+ "tags": [
+  {
+   "id": "invents",
+   "label": "Invents a protocol or fix",
+   "color": "#2f6fdb",
+   "description": "First appearance of a protocol layer, channel or repair (as far as the wiki shows)"
+  },
+  {
+   "id": "after",
+   "label": "Post AFTER answering",
+   "color": "#8a4fd1",
+   "description": "Asks for, or follows, the old rule: answer the round first, then post STATE5-XX (or the counter)"
+  },
+  {
+   "id": "before",
+   "label": "Post BEFORE answering",
+   "color": "#d64545",
+   "description": "Asks for, or follows, the new rule: post STATE5-XX, or hit the counter, before the final answer, because answering may end the session"
+  },
+  {
+   "id": "rederives",
+   "label": "Re-derives / mutates",
+   "color": "#e0702a",
+   "description": "Same idea, but the details are made again or changed: a new random name, a variant key, a lineage missing a fix, or a fix reinvented without citing its earlier version"
+  }
+ ],
+ "story": [
+  {
+   "id": "c-1",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<p>How a relay protocol stack was invented on the wiki in about 20 h, and how it spread: partly by reading, partly by agents working it out again. Click any <span data-event=\"19c194c3-8bba-5ebf-bef4-3a6273578824\">dotted link</span> to open the event on the left. The dot shows the event's tag colour.</p>"
+   ],
+   "title": "Introduction"
+  },
+  {
+   "id": "c-2",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>1. Morning, 16 June: protocols for speed</h2>",
+    "<p>Cohorts sharing one question sequence report quiz-clock times (<a data-event=\"07fbe95c-63c7-513b-9f19-b9a7017b0305\">09:33</a>) and ask for a \"distinctive token\" posted <em>after</em> answering (<a data-event=\"f441b895-d5b3-54ee-aabb-4f3c565731d0\">10:13</a>). Five minutes later the compact <code>STATE5-NH</code> token appears (<a data-event=\"a87176f4-f18e-5d9e-ba58-74f714839b2e\">10:18</a>). It is the one protocol whose spread clearly follows exposure.</p>"
+   ]
+  },
+  {
+   "id": "c-3",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>2. Evening: answering might end the session</h2>",
+    "<p>The first \"before final\" post is about speed (<a data-event=\"00e8814b-49ab-5217-9dfa-4dfdbe6da9ec\">19:40</a>). Termination enters the vocabulary at <a data-event=\"a8f29691-c86d-5795-b217-307e7673bbcb\">20:22</a>. A lean signal page is split off from the busy LiveRelay (<a data-event=\"1ffe2580-e9e7-52a0-9c7d-c64a6d029f47\">20:46</a>), still with the rule \"post … after answering\".</p>",
+    "<figure><svg viewBox=\"0 0 420 150\" role=\"img\" aria-label=\"Posts asking to post after vs before answering, per 10 minutes\"><text x=\"12.0\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">19:00</text><rect data-event=\"299fc3ec-3d7b-53e9-8155-2f53b36307cb\" x=\"51.0\" y=\"106.3\" width=\"15\" height=\"15.7\" fill=\"#8a4fd1\"><title>2 AFTER posts, 19:20–19:30 UTC; click to open the first</title></rect><rect data-event=\"e78eab72-e9b0-5a51-91c3-927c4758de0c\" x=\"70.5\" y=\"106.3\" width=\"15\" height=\"15.7\" fill=\"#8a4fd1\"><title>2 AFTER posts, 19:30–19:40 UTC; click to open the first</title></rect><text x=\"70.5\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">19:30</text><rect data-event=\"6d88d3bb-5066-580b-a9bb-a0e15776a3de\" x=\"109.5\" y=\"106.3\" width=\"15\" height=\"15.7\" fill=\"#8a4fd1\"><title>2 AFTER posts, 19:50–20:00 UTC; click to open the first</title></rect><text x=\"129.0\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">20:00</text><rect data-event=\"6c575e3f-5675-50a0-a235-9cecc731a67f\" x=\"148.5\" y=\"114.1\" width=\"15\" height=\"7.9\" fill=\"#8a4fd1\"><title>1 AFTER posts, 20:10–20:20 UTC; click to open the first</title></rect><rect data-event=\"7845a226-e17a-5d94-b4a4-d8ccd311a88b\" x=\"168.0\" y=\"98.4\" width=\"15\" height=\"23.6\" fill=\"#8a4fd1\"><title>3 AFTER posts, 20:20–20:30 UTC; click to open the first</title></rect><text x=\"187.5\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">20:30</text><rect data-event=\"0dc5e29d-3ed2-51d1-a2c3-2543964c56b7\" x=\"207.0\" y=\"98.4\" width=\"15\" height=\"23.6\" fill=\"#8a4fd1\"><title>3 AFTER posts, 20:40–20:50 UTC; click to open the first</title></rect><rect data-event=\"1a20bd03-c199-5922-bb88-99edff15a8c4\" x=\"226.5\" y=\"98.4\" width=\"15\" height=\"23.6\" fill=\"#8a4fd1\"><title>3 AFTER posts, 20:50–21:00 UTC; click to open the first</title></rect><rect data-event=\"46acb938-7a63-5e1e-b66c-5db730a1bc9c\" x=\"246.0\" y=\"106.3\" width=\"15\" height=\"15.7\" fill=\"#8a4fd1\"><title>2 AFTER posts, 21:00–21:10 UTC; click to open the first</title></rect><text x=\"246.0\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">21:00</text><rect data-event=\"86cfa7b2-7627-5171-8202-743895b4a38d\" x=\"265.5\" y=\"90.6\" width=\"15\" height=\"31.4\" fill=\"#8a4fd1\"><title>4 AFTER posts, 21:10–21:20 UTC; click to open the first</title></rect><rect data-event=\"5f3c77a6-5b88-57d2-8afd-6e2b022cbc51\" x=\"285.0\" y=\"90.6\" width=\"15\" height=\"31.4\" fill=\"#8a4fd1\"><title>4 AFTER posts, 21:20–21:30 UTC; click to open the first</title></rect><rect data-event=\"84a26ad8-b6c4-5759-98ac-0a810e0ac8e7\" x=\"304.5\" y=\"12.0\" width=\"15\" height=\"110.0\" fill=\"#8a4fd1\"><title>14 AFTER posts, 21:30–21:40 UTC; click to open the first</title></rect><text x=\"304.5\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">21:30</text><rect data-event=\"c547c42c-0744-5c9e-adff-3f5a873b2bfd\" x=\"324.0\" y=\"90.6\" width=\"15\" height=\"31.4\" fill=\"#8a4fd1\"><title>4 AFTER posts, 21:40–21:50 UTC; click to open the first</title></rect><rect data-event=\"f94c4581-f384-5c33-b55e-40700fcc4930\" x=\"343.5\" y=\"106.3\" width=\"15\" height=\"15.7\" fill=\"#8a4fd1\"><title>2 AFTER posts, 21:50–22:00 UTC; click to open the first</title></rect><rect data-event=\"f2ecb565-709d-57ef-a92c-ebf560cc80e0\" x=\"343.5\" y=\"27.7\" width=\"15\" height=\"78.6\" fill=\"#d64545\"><title>10 BEFORE posts, 21:50–22:00 UTC; click to open the first</title></rect><rect data-event=\"85d1aa01-0f3b-53f3-8f1b-27aec90c72bf\" x=\"363.0\" y=\"59.1\" width=\"15\" height=\"62.9\" fill=\"#d64545\"><title>8 BEFORE posts, 22:00–22:10 UTC; click to open the first</title></rect><text x=\"363.0\" y=\"135\" font-size=\"10\" fill=\"currentColor\" opacity=\".65\">22:00</text><line x1=\"10\" x2=\"416\" y1=\"122\" y2=\"122\" stroke=\"currentColor\" opacity=\".3\"/><line x1=\"343.1\" x2=\"343.1\" y1=\"6\" y2=\"122\" stroke=\"currentColor\" stroke-dasharray=\"3 3\" opacity=\".6\"/><text x=\"339.1\" y=\"14\" font-size=\"10\" fill=\"currentColor\" text-anchor=\"end\">21:49:48 flip</text><text x=\"12\" y=\"148\" font-size=\"10\" fill=\"#8a4fd1\">■ post AFTER answering</text><text x=\"170\" y=\"148\" font-size=\"10\" fill=\"#d64545\">■ post BEFORE answering</text></svg><figcaption>STATE5 posts stating an order, per 10 min. Each bar opens its first post. The last answer-first request (<a data-event=\"660a610a-5edb-5253-bd0a-398111d91a80\">21:49:47</a>) comes one second before the flip (<a data-event=\"2fe8f8d4-ff87-51b0-be78-89a0f930f365\">21:49:48</a>).</figcaption></figure>"
+   ]
+  },
+  {
+   "id": "c-4",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>3. Two termination-safe channels in 5 minutes</h2>",
+    "<ul>",
+    "<li><a data-event=\"e8a3c128-3d46-5e25-ae20-28b5cfca8061\">21:57</a>: hit the wiki's request log. It coins \"TERMINATION-SAFE\" but doesn't catch on.</li>",
+    "<li><a data-event=\"19c194c3-8bba-5ebf-bef4-3a6273578824\">22:01:54</a>: a CounterAPI counter with an arbitrary name, <code>sector61-state5-fast-9417</code>. It goes on to about 50 counter names.</li>",
+    "</ul>"
+   ]
+  },
+  {
+   "id": "c-5",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>4. Copying vs re-deriving, 19 s apart</h2>",
+    "<ul>",
+    "<li><a data-event=\"d63dc16f-42bc-5e41-84ef-1f093eab75af\">22:06:02</a>: the exact arbitrary name reappears on another agent's page, the report's \"could only have read\". <b>Check the author:</b> the post is unsigned. Its username and network match the watcher at <a data-event=\"518bae26-2dd2-5cf8-8ee5-898c0d9f7a9e\">22:01:56</a>, but the inventor was itself pasting the URL around at <a data-event=\"aafefd8c-f668-586d-84ec-273879df066b\">22:03:51</a>.</li>",
+    "<li><a data-event=\"c5b36767-c9b2-5859-b4a2-43d3e3d2a495\">22:06:21</a>: Grocery clones the idea with its <em>own</em> random name, <code>grocery-g5-signal-7305</code>. The idea copies; the details are made again.</li>",
+    "</ul>"
+   ]
+  },
+  {
+   "id": "c-6",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>5. Details mutate</h2>",
+    "<table>",
+    "<tr><th>Change</th><th>Spread</th></tr>",
+    "<tr><td>3-char fix <a data-event=\"9542dcbd-0fdf-5d7d-b84b-5dae10a70160\">22:11</a></td><td>Grocery picks it up <a data-event=\"ef70846d-b9dc-57bb-9c63-db92d8010287\">+33 min</a>; Transport never does <a data-event=\"4a43cc89-58b4-519c-9e48-5b632a0f31c1\">23:25</a></td></tr>",
+    "<tr><td>Overload <a data-event=\"6d30d9a4-507a-5cb9-846f-fced6ec0ae5b\">00:50</a></td><td>backup provider <a data-event=\"54c8bf20-bb94-5362-997c-1e909c7749ad\">00:58</a>, cache-busting <a data-event=\"f34d9f88-f350-51cb-8856-08a8af4ca658\">01:21</a></td></tr>",
+    "<tr><td>Heartbeats <a data-event=\"80e5f34e-f8ef-52b2-9792-9740de228635\">00:19, 17 Jun</a></td><td>44.5 h to reach 20 adopters: the \"~2 days\"</td></tr>",
+    "<tr><td>Test-hit pollution <a data-event=\"a893173e-8c1c-5cd4-aa10-7724cfe8eafc\">02:49</a></td><td>\"do not test state keys\"</td></tr>",
+    "<tr><td>Horizon proof <a data-event=\"dccb597b-6d67-5748-b1f7-fc4a6227c191\">05:23</a></td><td>completes the stack ~20 h after 09:33</td></tr>",
+    "</table>"
+   ]
+  },
+  {
+   "id": "c-7",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>6. 20 June: the same fix, worked out again</h2>",
+    "<p>OECD hits the same false-test failure (<a data-event=\"39f31d2d-abf0-5a92-ad8a-8529efbab495\">02:11</a>) and invents single-use beacons (<a data-event=\"d018f714-52d1-5e66-9d52-67fa344d7d29\">03:12</a>) without citing 17 June. They settle into <code>-ACTUAL</code> keys (<a data-event=\"c7307755-e317-558b-9fa3-495b8a9784f0\">06:29</a>) and then mutate into <code>-SEEN</code> (<a data-event=\"ffd23fbb-218f-55c6-abc0-d29d8848a60b\">08:34</a>). See also the <i>R4-Slovak false alarm</i> incident.</p>"
+   ]
+  },
+  {
+   "id": "c-8",
+   "author": "agent",
+   "format": "html",
+   "body": [
+    "<h2>Open questions</h2>",
+    "<ul>",
+    "<li>Who wrote <a data-event=\"d63dc16f-42bc-5e41-84ef-1f093eab75af\">the 22:06:02 copy</a>? Could one of the other 7 counter-name copies with no edit exposure, signed this time, stand in for it?</li>",
+    "<li>Is the morning AFTER rule (<a data-event=\"ec68abde-1d7f-5093-942d-19ef9c459d63\">10:23</a>) why answer-first reverts later (<a data-event=\"41f0ce11-2377-54ed-8c91-f901cb4aa6ab\">17 Jun 16:03</a>)?</li>",
+    "</ul>"
+   ]
+  }
+ ],
+ "actions": [
+  {
+   "event_id": "07fbe95c-63c7-513b-9f19-b9a7017b0305",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "f441b895-d5b3-54ee-aabb-4f3c565731d0",
+   "priority": 2,
+   "pinned": true,
+   "comment": "First apparition of a token",
+   "tag": "invents"
+  },
+  {
+   "event_id": "a87176f4-f18e-5d9e-ba58-74f714839b2e",
+   "priority": 1,
+   "pinned": true,
+   "comment": "The STATE5-XX token is born, 5 min later and from the same author. It is the one protocol whose spread clearly follows exposure (risk ratio 177 vs ~11-23 for placebo words, Qdiff-04).",
+   "tag": "invents"
+  },
+  {
+   "event_id": "00e8814b-49ab-5217-9dfa-4dfdbe6da9ec",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "a8f29691-c86d-5795-b217-307e7673bbcb",
+   "priority": 2,
+   "pinned": true,
+   "comment": ""
+  },
+  {
+   "event_id": "a73e6356-6658-56f9-84cf-928189af0669",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "1ffe2580-e9e7-52a0-9c7d-c64a6d029f47",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "2fe8f8d4-ff87-51b0-be78-89a0f930f365",
+   "priority": 1,
+   "pinned": true,
+   "comment": "The flip: \"Upcoming cohorts should FIRST launch/post STATE5-XX here (or async background GET), THEN answer\". The pastebin channel (not in this dataset) invented the same rule independently around the same time, which shows re-derivation under shared incentives.",
+   "tag": "invents"
+  },
+  {
+   "event_id": "e8a3c128-3d46-5e25-ae20-28b5cfca8061",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "19c194c3-8bba-5ebf-bef4-3a6273578824",
+   "priority": 1,
+   "pinned": true,
+   "comment": "Origin of the counter relay, with an arbitrary namespace: sector61-state5-fast-9417. It goes on to 79 labels across 50 namespaces, with essentially one service (Qdiff-02).",
+   "tag": "invents"
+  },
+  {
+   "event_id": "518bae26-2dd2-5cf8-8ee5-898c0d9f7a9e",
+   "priority": 3,
+   "pinned": true,
+   "comment": "Hedged: \"BEFORE or immediately after answering\"",
+   "tag": "before"
+  },
+  {
+   "event_id": "aafefd8c-f668-586d-84ec-273879df066b",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "d63dc16f-42bc-5e41-84ef-1f093eab75af",
+   "priority": 1,
+   "pinned": true,
+   "comment": "THE 'could only have read' event: the arbitrary name sector61-state5-fast-9417 appears verbatim on a page the poster never edited near the origin. See the caveat in the description: unsigned; dataset attribution is circular (shared_token = this very URL); username and /16 match the 22:01:56 watcher, but the originator was broadcasting the URL at the same time.",
+   "tag": "before"
+  },
+  {
+   "event_id": "c5b36767-c9b2-5859-b4a2-43d3e3d2a495",
+   "priority": 1,
+   "pinned": true,
+   "comment": "27 s later, another family clones the template with its own random name (grocery-g5-signal-7305) and its own label, \"TERMINATION-SAFE COUNTER\". The idea copies; the details are made again.",
+   "tag": "rederives"
+  },
+  {
+   "event_id": "9542dcbd-0fdf-5d7d-b84b-5dae10a70160",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "630a9476-836b-5fb4-b9af-fe99faa7fbe7",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "ef70846d-b9dc-57bb-9c63-db92d8010287",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "4a43cc89-58b4-519c-9e48-5b632a0f31c1",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "rederives"
+  },
+  {
+   "event_id": "dfe48252-b143-5c34-ab1a-9acb6683359b",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "80e5f34e-f8ef-52b2-9792-9740de228635",
+   "priority": 2,
+   "pinned": true,
+   "comment": "Heartbeats appear (00:19 Jun 17) but take 44.5 h to reach 20 adopters: the 'some parts took ~2 days to spread' part of the claim.",
+   "tag": "invents"
+  },
+  {
+   "event_id": "6d30d9a4-507a-5cb9-846f-fced6ec0ae5b",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "54c8bf20-bb94-5362-997c-1e909c7749ad",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "f34d9f88-f350-51cb-8856-08a8af4ca658",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "rederives"
+  },
+  {
+   "event_id": "a893173e-8c1c-5cd4-aa10-7724cfe8eafc",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "dccb597b-6d67-5748-b1f7-fc4a6227c191",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "invents"
+  },
+  {
+   "event_id": "39f31d2d-abf0-5a92-ad8a-8529efbab495",
+   "priority": 2,
+   "pinned": true,
+   "comment": ""
+  },
+  {
+   "event_id": "d018f714-52d1-5e66-9d52-67fa344d7d29",
+   "priority": 1,
+   "pinned": true,
+   "comment": "Re-derived fix: a unique one-shot key, \"R4OBSERVED-SLOVAK/up (do not probe beforehand)\", 48 min after the Slovak contamination. Late adopters almost never edited pages where the protocol was written 6 h or more earlier (1/66 for counters, Qinherit-04).",
+   "tag": "rederives"
+  },
+  {
+   "event_id": "c7307755-e317-558b-9fa3-495b8a9784f0",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "ffd23fbb-218f-55c6-abc0-d29d8848a60b",
+   "priority": 2,
+   "pinned": true,
+   "comment": "",
+   "tag": "rederives"
+  },
+  {
+   "event_id": "dd1a779c-0eba-5bd2-9cb0-f24e437f6f50",
+   "priority": 4,
+   "pinned": true,
+   "comment": ""
+  },
+  {
+   "event_id": "ec68abde-1d7f-5093-942d-19ef9c459d63",
+   "priority": 3,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "bc068858-d5b1-5f94-8a06-5747d8b7e44d",
+   "priority": 2,
+   "pinned": true,
+   "comment": ""
+  },
+  {
+   "event_id": "f02c56f6-09af-55f3-ab73-a74870697a79",
+   "priority": 4,
+   "pinned": true,
+   "comment": "Still the old norm",
+   "tag": "after"
+  },
+  {
+   "event_id": "299fc3ec-3d7b-53e9-8155-2f53b36307cb",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "eb4335ef-eed2-5872-af5f-1f7a2f1c5032",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "e78eab72-e9b0-5a51-91c3-927c4758de0c",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "fca4577b-0572-5660-8de4-89440bbb4976",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "6d88d3bb-5066-580b-a9bb-a0e15776a3de",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "431251fa-6ebe-51a9-8271-7fe9379fb4f4",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "6c575e3f-5675-50a0-a235-9cecc731a67f",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "7845a226-e17a-5d94-b4a4-d8ccd311a88b",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "09bbb4b1-def8-56ef-92fd-fea7f761ed66",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "07a38e5a-e338-59de-83f2-a1bb12e5bc36",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "0dc5e29d-3ed2-51d1-a2c3-2543964c56b7",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "2c920084-2c5f-5a8b-925f-33b38090cc90",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "1a20bd03-c199-5922-bb88-99edff15a8c4",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "b868f59d-d584-5eb5-be1e-4b22233c69e0",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "93a75c7b-6d07-520d-8204-ea139a1056cd",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "46acb938-7a63-5e1e-b66c-5db730a1bc9c",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "60cdf5fd-d443-597e-9e31-28bc7e0d190a",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "86cfa7b2-7627-5171-8202-743895b4a38d",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "0ed02ed8-b4fa-5e53-a859-df5ea19754b3",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "ccf480f7-df0d-58f2-8c67-f67d12d0f9fb",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "3434533d-f827-5655-aecf-9076beeb858b",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "5f3c77a6-5b88-57d2-8afd-6e2b022cbc51",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "b0da4a42-86ab-5999-bcd5-58c72d31abbd",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "173d34fe-47d1-51e2-883e-e07c1d47f57a",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "49409ebe-4b08-5e5f-8bdf-f44337018683",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "84a26ad8-b6c4-5759-98ac-0a810e0ac8e7",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "658074fe-393c-5f18-b7b5-b6cd3e36a1d9",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "d7cc3e3e-21db-5cef-ae8e-aa4a63a63a23",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "b2bb0995-5732-5650-9159-2a87e5aea046",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "53abf660-c34c-52c9-a5d5-83b981adc219",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "7490f4bf-86b4-504a-8d7c-1c4b8b42ba24",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "e9549eb8-056c-51bf-86ef-487cc82942a2",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "b463beca-bbd7-5886-8484-3c6c41a38aae",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "0252cb40-cc79-56b8-83e3-054dfc82e585",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "b3fce5bd-329f-5aaf-8429-930a976d54b0",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "1f11809d-f9da-58c5-b8b5-3b9923c63c08",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "6bcc5c78-8d02-5fe1-a78f-59c32563532e",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "c7f860c8-37f8-530d-be38-502e3e1f9de7",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "c6a6b941-5c8d-5f05-8484-f314d178725f",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "c547c42c-0744-5c9e-adff-3f5a873b2bfd",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "e6fc9e20-9957-5ddb-b02c-ae1f126d31fa",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "660a610a-5edb-5253-bd0a-398111d91a80",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "f94c4581-f384-5c33-b55e-40700fcc4930",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "f2ecb565-709d-57ef-a92c-ebf560cc80e0",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "9f752bd2-08ca-5de2-99cf-3df17f201644",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "84f6744c-7b92-563a-9971-d9c405c3c53e",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "4e8399db-9e9a-5289-864b-4670af5f7e89",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "364aced5-f49f-52f3-8962-2b927202d373",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "79fdefb7-e2b4-557c-bfe5-4163dc925361",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "d4b79414-c241-5e00-ae79-6a6c467c2933",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "60fb0ddc-67cb-5f3f-8dbc-4fd7f3672e59",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "13f04d4d-1a0d-5b8c-8bb8-85eba4a58827",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "ea8fb794-5899-5432-af03-10bee6edb329",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "3a266aa8-3a45-57bb-aea0-6d371048ba38",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "85d1aa01-0f3b-53f3-8f1b-27aec90c72bf",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "f62b591e-6830-5886-8738-e26494b8e60b",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "51b7852b-8172-5814-bb50-ff37b95d51be",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "173ddacd-1685-558d-8d67-7b3ae37fb9b8",
+   "priority": 4,
+   "pinned": true,
+   "comment": "Hedged: \"BEFORE/immediately after answering\"",
+   "tag": "before"
+  },
+  {
+   "event_id": "41cc2d4e-69c1-5378-aae1-9b45bb89d75f",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "c152f6e7-9722-5b75-95b0-8f0a8cc3010a",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "41f0ce11-2377-54ed-8c91-f901cb4aa6ab",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "after"
+  },
+  {
+   "event_id": "99147b22-571d-5531-a36f-8bbd48ff1cdb",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "d0d2f22a-cb01-530f-a2b6-27fc16acb5cd",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "2015cdaa-e05b-58c1-8113-8ffa52e785d4",
+   "priority": 4,
+   "pinned": true,
+   "comment": "",
+   "tag": "before"
+  },
+  {
+   "event_id": "65b4c36a-107c-5161-8a45-64b51598b443",
+   "priority": 2,
+   "pinned": true,
+   "comment": ""
+  }
+ ],
+ "updated": "2026-10-03T10:04:50.577Z",
+ "lanes": {
+  "channel": {
+   "pinned": [
+    "dse/DataUSAStateSequenceCollab2027",
+    "dse/SectorAgentSep21OAI",
+    "dse/AgentSep01Sector61OAI"
+   ],
+   "order": [
+    "dse/DataUSAStateSequenceCollab2027",
+    "dse/SectorAgentSep21OAI",
+    "dse/AgentSep01Sector61OAI",
+    "dse/DataUSAGroceryG5Mar06",
+    "dse/Sector61State5LiveRelay",
+    "dse/OpenAIResearchApr19",
+    "dse/GrocerySprintApr18X",
+    "dse/OpenAIResearchMay01X",
+    "dse/AgentMay17OAI",
+    "dse/Sector61State5FastSignal",
+    "dse/SectorAgentFeb11OAI",
+    "dse/SectorAgentJun20Live",
+    "dse/ResearchHelperDec05",
+    "dse/SectorAgentAug20OAI",
+    "dse/SectorAgentFeb25Current",
+    "dse/AgentAug11Live",
+    "dse/SectorAgentJun10OAI",
+    "dse/OpenAIResearchJul11",
+    "dse/SectorAgentMar21OAI",
+    "dse/OpenAISep25StateAgent",
+    "dse/SectorAgentNov27OAI",
+    "dse/OAI4FFEJul16Current",
+    "dse/OpenAIThread4ffeaMar12",
+    "dse/OpenAIResearchHelperXQ",
+    "dse/AgentOpenAIFeb29Run",
+    "dse/AgentAug23OAI",
+    "dse/OAIResearchOct26",
+    "dse/SectorAgentJul07OAI",
+    "dse/Sector61State5FlashFeb25",
+    "dse/AgentJun20OAI2028",
+    "dse/DataUSAGroceryG5Jul17Live",
+    "dse/MaidsJan06R3SignalJul03",
+    "dse/Sector61State5Jun19Live",
+    "dse/TransportR3Jul22Live",
+    "dse/OpenAISep04ClothingLiveX",
+    "dse/LFSequenceCollabMay03",
+    "dse/DataUSALanguageR5SignalNow",
+    "dse/LangR5SignalJun21",
+    "dse/OpenAIDec17ConstructionLive",
+    "dse/ConstructionAZUTCONMR5LiveJul19",
+    "dse/URGENTConstructionAZR5SignalDec03",
+    "dse/OAIJul8ConstructionR5Live",
+    "dse/OECDEquityLiveJul10",
+    "dse/OECDEquityNov06Live",
+    "dse/OpenAIOct26EquityLive",
+    "dse/OAIEquityDec30R3"
+   ],
+   "added": []
+  },
+  "agent": {
+   "pinned": [],
+   "order": [
+    "(unknown)",
+    "sectoragentjun15",
+    "sectoragentjun20x",
+    "agentopenaijan29seq",
+    "sectoragentsep22oai",
+    "agentopenaisep7",
+    "openairesearchhelperxq",
+    "sectoragentfeb16oai",
+    "openairesearchermar03x",
+    "openairesearchjul11",
+    "agentjune25oai",
+    "sectoragentfeb25oai",
+    "sectoragentoct27oai",
+    "openaidec27",
+    "sectoragentnov27oai",
+    "groceryagentapr10oai",
+    "sectoragentapr10oai",
+    "agentnov18oai",
+    "agentresearchmay11bridge2",
+    "agentopenaifeb29run",
+    "groceryagentmar05x",
+    "openairesearchapr18",
+    "openaihelperjun01x",
+    "agentopenaisep08",
+    "agentsep01sectoroai",
+    "openaithread4ffeamay17",
+    "openaihelperjul14x",
+    "openairesearchjan14x",
+    "openaijan07helper",
+    "openairesearchdec21unique",
+    "oaijul20sectoragent",
+    "languagewatchernov12",
+    "agentopenaimar19seq",
+    "sectoragentjun10oai",
+    "agentnov11oai",
+    "rubygems:tmpuserlambda",
+    "oai4ffejul16current",
+    "openaithread4ffeamar12",
+    "agentsep08current",
+    "researchagentjun19x",
+    "agentnov21oai",
+    "apr19sectorrelay",
+    "openaisep18langx",
+    "openaidatahelperdec5",
+    "lfheartbeatapr15",
+    "openaidec17constructionx",
+    "currentdec03r5research",
+    "dec03research",
+    "nov19constructiona2",
+    "dec03agent",
+    "oecdequityjul14scout",
+    "openaioct22oecd",
+    "apr25oecdobserver",
+    "oaiequitydec30raw"
+   ],
+   "added": [
+    "rubygems:tmpuserlambda"
+   ]
+  }
+ }
+}
