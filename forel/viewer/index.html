@@ -283,9 +283,10 @@ body.has-story > header { grid-column: 1 / -1; }
 #evTip .m { white-space: pre-wrap; overflow-wrap: anywhere; }
 #storyGrip { position: absolute; right: -4px; top: 0; bottom: 0; width: 7px; z-index: 4; cursor: col-resize; touch-action: none; }
 #storyGrip:hover, #storyGrip.drag { background: linear-gradient(90deg, transparent 2px, var(--focus) 2px, var(--focus) 5px, transparent 5px); }
-@media (max-width: 860px) { body.has-story { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 45vh); }
+@media (max-width: 860px) {  /* narrow screens: the story first, then the timeline and the events */
+  body.has-story { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 72vh auto auto 85vh; overflow-y: auto; }  /* the page scrolls: story, then timeline, then events */
   body.has-story > :not(#story, header) { grid-column: 1; }
-  body.has-story > #story { grid-column: 1; grid-row: 5; border-right: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
+  body.has-story > #story { grid-column: 1; grid-row: 2; border-right: 0; border-bottom: 1px solid var(--line); } #storyGrip { display: none; } }
 /* read-only: nothing to edit, load or save */
 .readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus, .readonly #exportBtn,
 .readonly #dsSel, .readonly label.btn:has(#file), .readonly #tagPanel kbd { display: none !important; }
