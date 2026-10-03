@@ -1,0 +1,18 @@
+# Rebuild the public website (which embeds forel/viewer/index.html) when the viewer changes.
+# The deploy hook URL is a repository secret; forks don't have it, so there this does nothing.
+name: Deploy website
+on:
+  push:
+    branches: [main]
+    paths: [forel/viewer/index.html]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the Cloudflare Pages deploy hook
+        env:
+          HOOK: ${{ secrets.WEBSITE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "No WEBSITE_DEPLOY_HOOK secret; skipping."; exit 0; fi
+          curl -fsS -X POST "$HOOK" > /dev/null && echo "Website rebuild started."
