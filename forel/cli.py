@@ -4,6 +4,7 @@
     forel index [WORKSPACE]                rebuild data/index.json from the dataset files in data/
     forel check [WORKSPACE] [INCIDENT...]  check incident files (or --dataset ID: a dataset)
     forel serve [WORKSPACE]                serve the viewer at http://localhost:8000
+    forel export [WORKSPACE] INCIDENT      zip an incident and its data to share (max 60 MB: data cut to fit)
 
 WORKSPACE defaults to the current folder. Formats: https://github.com/forel-io/forel/blob/main/docs/format.md
 """
@@ -89,6 +90,11 @@ def cmd_serve(a):
     return 0
 
 
+def cmd_export(a):
+    from . import export
+    return export.main(a.workspace, a.incident, a.output, int(a.max_mb * 1_000_000))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='forel', description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--version', action='version', version=f'forel {__version__}')
@@ -111,6 +117,13 @@ def main(argv=None):
     p.add_argument('--open', action='store_true', help='open the viewer in the default browser')
     p.add_argument('--path', default='', help='page to open, e.g. "?dataset=my-swarm&incident=overview"')
     p.set_defaults(fn=cmd_serve)
+    p = sub.add_parser('export', help='zip an incident and its data to share')
+    p.add_argument('workspace', nargs='?', default='.')
+    p.add_argument('incident', help='incident id (the file name in incidents/, without .json)')
+    p.add_argument('-o', '--output', help='zip file to write (default: <incident>.zip)')
+    p.add_argument('--max-mb', type=float, default=60, help='size limit of the zip in MB (default 60); a bigger dataset is cut '
+                   'to the events of the incident\'s agents and channels around its time range')
+    p.set_defaults(fn=cmd_export)
     a = ap.parse_args(argv)
     if a.cmd == 'check' and not os.path.isdir(a.workspace):
         a.incidents.insert(0, a.workspace); a.workspace = '.'  # `forel check overview`: incidents of the current folder

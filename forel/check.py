@@ -63,6 +63,8 @@ def check(path):
         problems.append('"tags" must be a list of {"id", "label"} objects')
         tags = []
     tag_ids = [t['id'] for t in tags]
+    if inc.get('story_links') not in (None, 'event', 'agent', 'channel'):
+        problems.append('"story_links" must be "agent", "channel" or "event"')
     if len(set(tag_ids)) < len(tag_ids):
         problems.append('a tag id is defined twice')
     events = events_of(inc['dataset'])
@@ -104,10 +106,12 @@ def story_cells(inc):
 
 
 def cell_links(c):
+    """The event ids a cell links to, including those a figure (data-forel="timeline") draws."""
     body = text_of(c.get('body'))
+    figs = [i for ids in re.findall(r'data-events\s*=\s*["\']([^"\']*)', body) for i in re.split(r'[\s,]+', ids) if i]
     if c.get('format') == 'markdown':
-        return re.findall(r'\]\(event:([^)\s]+)\)', body) + re.findall(r'data-event\s*=\s*["\']([^"\'\s>]+)', body)
-    return re.findall(r'''(?:data-event\s*=\s*|href\s*=\s*["']?#event=)["']?([^"'\s>]+)''', body)
+        return re.findall(r'\]\(event:([^)\s?]+)', body) + re.findall(r'data-event\s*=\s*["\']([^"\'\s>]+)', body) + figs
+    return re.findall(r'''(?:data-event\s*=\s*|href\s*=\s*["']?#event=)["']?([^"'\s>]+)''', body) + figs
 
 
 def story_links(inc):

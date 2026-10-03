@@ -40,6 +40,7 @@ forel index my-workspace                            # list the datasets in data/
 forel check my-workspace --dataset my-swarm         # is the dataset readable?
 forel check my-workspace                            # are the incidents valid?
 forel serve my-workspace --open                     # the viewer, at http://localhost:8000
+forel export my-workspace overview                  # overview.zip: the incident and its data, to share
 ```
 
 To see what a finished investigation looks like, clone the repository and open the example workspace: public
@@ -63,6 +64,12 @@ workspace.
 - **Story** (right): the incident's story, in cells that link to events. Add cells for your notes; they are locked
   so the agent can't change them.
 - On any event: **pin** it, set its **priority**, **tag** it, **comment** on it.
+
+**Export** (top right) downloads the open incident as a zip to share, for example on the community website: the
+incident file (story, tags, pins, notes) and its dataset, as a small workspace anyone can open with `forel serve`.
+The zip is at most 60 MB. If the whole dataset doesn't fit, it is cut down to the events the incident pins or links
+to, every event of the agents and channels involved over the incident's time range widened before and after as far as
+the limit allows, and then other agents' events nearest the incident. The zip's README says what was kept.
 
 Your edits save to the workspace as you go. The open tabs and timeline settings are saved with each incident, and
 come back when you reopen it.

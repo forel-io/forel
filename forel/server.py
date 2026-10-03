@@ -8,9 +8,10 @@ The page comes from this package; data/ and incidents/ come from the workspace:
   PUT /incidents/<id>.json       save one incident. The page sends the version it last loaded or saved in
                                  X-Forel-Base; if the file has changed since (an agent wrote it), the save is refused
                                  with 409 and the current file, which the page merges with its own edits and saves again
+  GET /export/<id>.zip           the incident and its dataset as a zip to share (forel export), at most 60 MB
 A version is the file's modification time in nanoseconds.
 """
-import functools, gzip, http.server, json, os, re, socket, webbrowser
+import functools, gzip, http.server, json, os, re, socket, tempfile, webbrowser
 
 VIEWER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viewer')
 _gz = {}  # path -> (mtime, gzipped bytes)
@@ -68,6 +69,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             v = version(f)
             with open(f, 'rb') as fh:
                 return self.send_body(200, fh.read(), [('X-Forel-Version', v)])
+        m = re.fullmatch(r'/export/([\w-]+)\.zip', path)
+        if m:
+            return self.send_export(m.group(1))
         local = self.translate_path(path)
         if path.endswith(('.json', '.jsonl')) and os.path.isfile(local) and 'gzip' in self.headers.get('Accept-Encoding', ''):
             mtime = os.path.getmtime(local)
@@ -82,6 +86,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             return self.wfile.write(body)
         return super().do_GET()
+
+    def send_export(self, name):
+        from . import export
+        fd, tmp = tempfile.mkstemp(suffix='.zip'); os.close(fd)
+        try:
+            try:
+                m = export.export(self.workspace, name, tmp, log=lambda s: print(f'forel export: {s}', flush=True))
+            except FileNotFoundError as e:
+                return self.send_error(404, str(e))
+            except ValueError as e:
+                return self.send_error(422, str(e))
+            summary = f'{m["events"]:,} of {m["dataset_events"]:,} events' if m['cut'] else f'whole dataset, {m["events"]:,} events'
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/zip')
+            self.send_header('Content-Disposition', f'attachment; filename="{name}.zip"')
+            self.send_header('Content-Length', str(m['bytes']))
+            self.send_header('X-Forel-Export', summary)
+            self.end_headers()
+            with open(tmp, 'rb') as f:
+                while chunk := f.read(1 << 20):
+                    self.wfile.write(chunk)
+        finally:
+            os.remove(tmp)
 
     def do_PUT(self):
         m = re.fullmatch(r'/incidents/([\w-]+)\.json', self.path)

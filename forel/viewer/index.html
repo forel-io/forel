@@ -63,7 +63,14 @@ input[type=checkbox] { accent-color: var(--accent); margin: 0; }
 #split { height: 7px; margin: -4px 0 -3px; position: relative; z-index: 5; cursor: row-resize; touch-action: none; }
 #split::after { content: ''; position: absolute; left: 0; right: 0; top: 3px; height: 1px; }
 #split:hover::after, #split.drag::after { top: 2px; height: 3px; background: var(--focus); }
-#tagPanel h3 { margin: 0 0 4px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+#tagPanel h3 { margin: 0 0 4px 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none; }
+#tagPanel h3:hover { color: var(--ink); }
+#tagPanel h3 .fold { display: inline-block; width: 1em; }
+/* Collapsed: a thin strip with the title running down it; click it to open the panel again. */
+#tagPanel.shut { width: 24px; padding: 6px 0; overflow: hidden; cursor: pointer; }
+#tagPanel.shut:hover { background: var(--hover); }
+#tagPanel.shut + #tagGrip, #tagPanel.shut > :not(h3) { display: none; }
+#tagPanel.shut h3 { writing-mode: vertical-rl; margin: 0 auto; }
 .trow { display: flex; align-items: center; gap: 7px; padding: 2px 5px; border-radius: 3px; cursor: default; border: 1px solid transparent; }
 .trow[data-k], .trow .x { cursor: pointer; }
 .trow:hover { background: var(--hover); }
@@ -76,7 +83,7 @@ input[type=checkbox] { accent-color: var(--accent); margin: 0; }
 .trow.none { cursor: default; color: var(--muted); }
 #tagAdd { margin: 4px 0 0 1px; border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 5px; font: inherit; font-size: 12px; }
 .tagpill { padding: 0 6px; border-radius: 2px; background: var(--tc); color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; line-height: 17px; }
-@media (max-width: 860px) { #tlRow { flex-direction: column; } #tagPanel { width: auto; border-left: 0; border-top: 1px solid var(--line); } #tagGrip { display: none; } }
+@media (max-width: 860px) { #tlRow { flex-direction: column; } #tagPanel { width: auto; border-left: 0; border-top: 1px solid var(--line); } #tagPanel.shut { width: auto; padding: 4px 8px; } #tagPanel.shut h3 { writing-mode: horizontal-tb; margin: 0; } #tagGrip { display: none; } }
 #tlCanvas { display: block; width: 100%; cursor: crosshair; }
 #laneAdd { position: fixed; z-index: 30; width: 300px; max-height: 340px; display: flex; flex-direction: column; background: var(--panel);
   border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 5px; font-size: 12px; }
@@ -257,11 +264,11 @@ details.cot .body { white-space: pre-wrap; word-break: break-word; font-size: 12
 mark { background: var(--mark); color: #1d2127; padding: 0 1px; border-radius: 2px; }
 .hidden { display: none !important; }
 kbd { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line2); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--field); }
-/* ---------- story: the incident's own write-up (HTML), on the right; its event links open events on the left ---------- */
-body.has-story { grid-template-columns: minmax(0, 1fr) var(--story-w, 440px); }
-body.has-story > :not(#story, header) { grid-column: 1; }
+/* ---------- story: the incident's own write-up (HTML), on the left; its event links open events on the right ---------- */
+body.has-story { grid-template-columns: var(--story-w, 440px) minmax(0, 1fr); }
+body.has-story > :not(#story, header) { grid-column: 2; }
 body.has-story > header { grid-column: 1 / -1; }
-#story { grid-column: 2; grid-row: 2 / -1; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); border-left: 1px solid var(--line); }
+#story { grid-column: 1; grid-row: 2 / -1; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--panel); border-right: 1px solid var(--line); }
 #storyBar { display: flex; gap: 6px; align-items: center; padding: 4px 8px 4px 10px; background: var(--chrome); border-bottom: 1px solid var(--line); }
 #storyBar b { font-size: 11.5px; font-weight: 600; }
 #storyBar .sp { margin-left: auto; }
@@ -273,12 +280,13 @@ body.has-story > header { grid-column: 1 / -1; }
 #evTip .s { color: var(--muted); font-size: 11px; margin: 1px 0 4px; }
 #evTip .tg { padding: 0 5px; border-radius: 2px; background: var(--tc); color: #fff; font-weight: 600; }
 #evTip .m { white-space: pre-wrap; overflow-wrap: anywhere; }
-#storyGrip { position: absolute; left: -4px; top: 0; bottom: 0; width: 7px; z-index: 4; cursor: col-resize; touch-action: none; }
+#storyGrip { position: absolute; right: -4px; top: 0; bottom: 0; width: 7px; z-index: 4; cursor: col-resize; touch-action: none; }
 #storyGrip:hover, #storyGrip.drag { background: linear-gradient(90deg, transparent 2px, var(--focus) 2px, var(--focus) 5px, transparent 5px); }
 @media (max-width: 860px) { body.has-story { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr) minmax(0, 45vh); }
-  body.has-story > #story { grid-column: 1; grid-row: 5; border-left: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
+  body.has-story > :not(#story, header) { grid-column: 1; }
+  body.has-story > #story { grid-column: 1; grid-row: 5; border-right: 0; border-top: 1px solid var(--line); } #storyGrip { display: none; } }
 /* read-only: nothing to edit, load or save */
-.readonly .blk .tools, .readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus,
+.readonly .blk .tools, .readonly #tagAdd, .readonly .trow .x, .readonly #storyAdd, .readonly #saveStatus, .readonly #exportBtn,
 .readonly #dsSel, .readonly label.btn:has(#file), .readonly #tagPanel kbd { display: none !important; }
 .readonly .comment { cursor: auto; }
 ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: var(--line2); border: 2px solid transparent; background-clip: padding-box; border-radius: 6px; } ::-webkit-scrollbar-track { background: transparent; }
@@ -299,6 +307,7 @@ body.has-story > header { grid-column: 1 / -1; }
   </div>
   <div class="ctl" style="margin-left:auto">
     <span class="small" id="saveStatus"></span>
+    <button class="btn hidden" id="exportBtn" title="Download this incident and its data as a zip to share (at most 60 MB: a bigger dataset is cut to the incident's agents, channels and time range)">Export</button>
     <button class="btn hidden" id="storyBtn" title="Show or hide the incident's story">Story</button>
     <button class="btn" id="theme" title="Toggle light/dark">◐</button>
   </div>
@@ -670,11 +679,13 @@ function setTag(i, id) {  // toggle tag id on event i, pinning it if needed
   else { a.tag = id; a.pinned = true; }
   changed();
 }
+let tagShut = false; try { tagShut = localStorage.getItem('tagShut') === '1'; } catch {}  // the tags panel collapsed to a strip
 function renderTags() {
   const box = $('tagPanel'); box.classList.toggle('hidden', !INC); if (!INC) return;
+  box.classList.toggle('shut', tagShut);
   const n = new Map(), cur = actionAt(focus)?.tag; let none = 0;
   for (const a of INC.actions) if (a.pinned && byId.has(a.event_id)) a.tag ? n.set(a.tag, (n.get(a.tag) || 0) + 1) : none++;
-  box.innerHTML = `<h3 title="Click a tag to open a tab with its events. Double-click to rename it, click the dot to change its color. Tag an event with the tag button on it.">Tags</h3>` +
+  box.innerHTML = `<h3 title="${tagShut ? 'Show the tags' : 'Click to collapse. Click a tag to open a tab with its events. Double-click to rename it, click the dot to change its color. Tag an event with the tag button on it.'}"><span class="fold">${tagShut ? '‹' : '›'}</span>Tags${tagShut && INC.tags.length ? ` · ${INC.tags.length}` : ''}</h3>` +
     INC.tags.map((t, k) => `<div class="trow${t.id === cur ? ' on' : ''}" data-k="${k}" title="${esc(t.description || t.label)}"><span class="sw" style="background:${esc(t.color)}" title="Change color"></span>
       <span class="nm">${esc(t.label)}</span><span class="n">${n.get(t.id) || 0}</span>${k < 9 ? `<kbd title="Shift+${k + 1}">⇧${k + 1}</kbd>` : ''}<span class="x" title="Delete this tag">×</span></div>`).join('') +
     (none ? `<div class="trow none" title="Pinned events with no tag (drawn in the ink color)"><span class="sw" style="background:var(--ink)"></span><span class="nm">No tag</span><span class="n">${none}</span></div>` : '') +
@@ -709,6 +720,7 @@ document.addEventListener('mousedown', ev => { if (!ev.target.closest('#tagMenu,
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeTagMenu(); });
 addEventListener('scroll', closeTagMenu, true); addEventListener('resize', closeTagMenu);
 $('tagPanel').addEventListener('click', ev => {
+  if (tagShut || ev.target.closest('h3')) { tagShut = !tagShut; try { localStorage.setItem('tagShut', tagShut ? '1' : '0'); } catch {} return renderTags(); }
   if (ev.target.id === 'tagAdd') { if (newTag()) changed(); return; }
   const row = ev.target.closest('.trow[data-k]'); if (!row) return;
   const t = INC.tags[+row.dataset.k];
@@ -1338,7 +1350,7 @@ function renderDetail(scroll = true) {  // scroll: a fresh list centered on the 
 function setFocus(i, scroll = true) {
   if (i == null || i < 0 || i >= E.length) return;
   const old = focus; focus = i; centerOn(i); focusLane(); revealFocus = true;
-  if (!inTab(i)) { saveTab(); tabCur = 0; ctxBy = 'all'; renderTabs(); }  // an event outside the open tab: back to all events
+  if (!inTab(i)) { saveTab(); tabCur = allTab(); ctxBy = 'all'; renderTabs(); }  // an event outside the open tab: back to all events
   if (rowsTab === tabs[tabCur] && rowEl(i)) {  // already in the list: move the focus there, without rebuilding
     keepPlace(i, () => {
       for (const j of new Set([old, i])) { const el = rowEl(j)?.querySelector('.blk'); if (!el) continue;
@@ -1371,7 +1383,7 @@ addEventListener('message', e => {
   if (e.origin !== location.origin || e.source !== parent || e.data?.type !== 'forel:goto') return;
   const i = byId.get(String(e.data.event)); if (i != null && i !== focus) setFocus(i);
 });
-// Tabs over the event list: "All events", plus one per agent or channel (opened from a block's name or channel tag),
+// Tabs over the event list: "All events" (closable, reopened when needed), plus one per agent or channel (opened from a block's name or channel tag),
 // and search tabs (opened with +).
 // Each tab keeps its own open event and scroll position.
 // A tab: {by, base: its own events {name|key, idxs, n}, ctx: context around them, ref: base plus context (what the list shows),
@@ -1380,10 +1392,15 @@ let tabs = [{ by: 'all' }], tabCur = 0;
 const lowerIdx = (idxs, i) => { let lo = 0, hi = idxs.length; while (lo < hi) { const m = (lo + hi) >> 1; idxs[m] < i ? lo = m + 1 : hi = m; } return lo; };
 const hasIdx = (idxs, i) => idxs[lowerIdx(idxs, i)] === i;
 const inTab = i => { const t = tabs[tabCur]; return !t.ref || hasIdx(t.ref.idxs, i); };
+function allTab() {  // the All events tab's index; reopened first if it was closed
+  let k = tabs.findIndex(t => t.by === 'all');
+  if (k < 0) { tabs.unshift({ by: 'all' }); tabCur++; k = 0; }
+  return k;
+}
 function resetTabs() { tabs = [{ by: 'all' }]; tabCur = 0; ctxBy = 'all'; rows = []; rowsTab = null; renderTabs(); }
 function renderTabs() {
   $('tabs').innerHTML = tabs.map((t, k) => `<button class="tab${k === tabCur ? ' on' : ''}" data-k="${k}" title="${t.ref ? `${esc(t.ref.name ?? t.ref.key)} · ${t.ref.n.toLocaleString()} events${ctxOn(t.ctx) ? ` (with context: ${ctxLabel(t.ctx)})` : ''}` : 'Every event in the dataset'}">` +
-    (t.ref ? `<span class="k">${t.by}</span><span class="nm">${esc(t.ref.name || t.ref.key || 'new')}</span>${t.by === 'view' ? '<span class="ed" title="Edit this view">✎</span>' : ''}<span class="x" title="Close tab">×</span>` : '<span class="nm">All events</span>') + '</button>').join('') +
+    (t.ref ? `<span class="k">${t.by}</span><span class="nm">${esc(t.ref.name || t.ref.key || 'new')}</span>${t.by === 'view' ? '<span class="ed" title="Edit this view">✎</span>' : ''}<span class="x" title="Close tab">×</span>` : `<span class="nm">All events</span>${tabs.length > 1 ? '<span class="x" title="Close tab">×</span>' : ''}`) + '</button>').join('') +
     '<button class="tab add" id="tabAdd" title="New search tab: a text, channels and agents (More options in it: pins, tags, sources)">+</button>';
   renderSearchPanel(); renderChannels(); renderCtxCtl(); noteLayout();  // the open channel tab's chip is highlighted
 }
@@ -1416,10 +1433,13 @@ function openTab(by, ref, i, view) {  // the tab for an agent, a channel, a tag 
   setFocus(i ?? r.idxs.find(j => j >= focus) ?? r.idxs[r.idxs.length - 1]);  // by default, the first event at or after the open one
 }
 function closeTab(k) {
-  if (!k || !tabs[k]) return;
-  if (tabs[k].by === 'view' && !confirm(`Close and delete the view "${tabs[k].ref.name}"?`)) return;
-  if (k === tabCur) { const was = tabCur; switchTab(k - 1); if (tabCur === was) { saveTab(); tabCur = 0; ctxBy = 'all'; renderDetail(); } }
-  const view = tabs[k].by === 'view'; tabs.splice(k, 1); if (tabCur > k) tabCur--; renderTabs(); if (view) saveViews();
+  const t = tabs[k]; if (!t || tabs.length < 2) return;  // the last tab stays open
+  if (t.by === 'view' && !confirm(`Close and delete the view "${t.ref.name}"?`)) return;
+  if (k === tabCur) {
+    switchTab(k ? k - 1 : 1);
+    if (tabs[tabCur] === t) { if (t.by === 'all') return; saveTab(); tabCur = allTab(); ctxBy = 'all'; renderDetail(); }  // the neighbour is an empty view
+  }
+  k = tabs.indexOf(t); tabs.splice(k, 1); if (tabCur > k) tabCur--; renderTabs(); if (t.by === 'view') saveViews();
 }
 $('tabs').addEventListener('click', ev => {
   const b = ev.target.closest('.tab'); if (!b) return;
@@ -1685,8 +1705,8 @@ function restoreLayout(l) {  // rebuild the tabs and the timeline from a saved l
       if (f != null) t.focus = f;
       T.push(t);
     }
-    if (T[0]?.by !== 'all') T.unshift({ by: 'all' });
-    const cur = Math.max(0, Math.min(T.length - 1, (+l.cur || 0) + (l.tabs[0]?.by === 'all' ? 0 : 1)));
+    if (!T.length) T.push({ by: 'all' });
+    const cur = Math.max(0, Math.min(T.length - 1, +l.cur || 0));
     tabs = T; tabCur = cur; ctxBy = T[cur].by; rows = []; rowsTab = null;
     const tl = l.timeline || {};
     laneMode = tl.lanes === 'channel' ? 'channel' : 'agent'; showOthers = !!tl.others; $('showOthers').checked = showOthers;
@@ -1791,7 +1811,7 @@ $('vbOpen').onclick = () => {
 $('spMore').onclick = () => openBuilder(undefined, tabCur);
 
 // ---------- story ----------
-// An incident's story (incident.story) is a list of cells, shown on the right:
+// An incident's story (incident.story) is a list of cells, shown on the left:
 //   {"id": "c-1a2b3c", "author": "human" | "agent", "format": "markdown" | "html", "body": text or list of lines,
 //    "locked": true (agents must not change it), "collapsed": true, "title": "..." (else the cell's first heading)}
 // People write cells here, in markdown, with a rich-text editor; a new cell is locked, and the lock button in its
@@ -1815,6 +1835,17 @@ a { color: var(--accent); }
 a[data-event], span[data-event] { color: var(--accent); text-decoration: none; white-space: nowrap; border-bottom: 1px dotted currentColor; border-radius: 2px; }
 a[data-event]::before, span[data-event]::before { content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 3px 1px 1px; border-radius: 50%; background: var(--tc, var(--muted)); vertical-align: middle; }
 a[data-event]:hover, span[data-event]:hover { background: var(--hover); }
+figure[data-forel] { margin: .3em 0 .9em; } svg.fx { display: block; width: 100%; height: auto; }
+svg.fx text { font-family: var(--sans); font-size: 10.5px; fill: var(--muted); } svg.fx .fx-name { fill: var(--ink); }
+svg.fx .fx-grid { stroke: var(--line); stroke-width: 1; } svg.fx .fx-lane { stroke: var(--line2); stroke-width: 1; }
+svg.fx g[data-event] circle { stroke: var(--panel); stroke-width: 1.5; }
+svg.fx g[data-event]:hover circle, svg.fx g[data-event].cur circle { stroke: var(--ink); stroke-width: 2; }
+svg.fx .fx-num { fill: #fff; font-size: 9px; font-weight: 700; pointer-events: none; }
+svg.fx .fx-other { fill: var(--muted); opacity: .45; } svg.fx .fx-other:hover { opacity: 1; }
+svg.fx .fx-bar:hover rect { opacity: .75; }
+.fx-key { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 11.5px; color: var(--muted); margin: 2px 0 0; }
+.fx-key span { display: inline-flex; align-items: center; gap: 5px; } .fx-key i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.fx-msg { font-size: 12px; color: var(--muted); font-style: italic; }
 .cur:is(a, span)[data-event] { background: color-mix(in srgb, var(--focus) 26%, transparent); outline: 1px solid var(--focus); }
 svg .cur[data-event], svg [data-event].cur * { stroke: var(--focus); stroke-width: 2.5px; }
 .bad[data-event] { color: #d64545; text-decoration: line-through wavy; cursor: help; }
@@ -1890,7 +1921,7 @@ const storyStyle = () => (Array.isArray(INC?.story_style) ? INC.story_style.join
 function mdInline(s) {
   const codes = [];
   let h = esc(s).replace(/`([^`\n]+)`/g, (m, c) => `\u0000${codes.push(c) - 1}\u0000`);
-  h = h.replace(/\[([^\]\n]+)\]\(event:([^)\s]+)\)/g, '<a data-event="$2">$1</a>')
+  h = h.replace(/\[([^\]\n]+)\]\(event:([^)\s?]+)(?:\?tab=(\w+))?\)/g, (m, t, id, tab) => `<a data-event="${id}"${tab ? ` data-tab="${tab}"` : ''}>${t}</a>`)
        .replace(/\[([^\]\n]+)\]\(((?:https?:|\?|#)[^)\s]*)\)/g, '<a href="$2">$1</a>')
        .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
        .replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, '$1<i>$2</i>')
@@ -1930,7 +1961,7 @@ function htmlToMD(root) {
     if (n.nodeType !== 1) return '';
     const t = n.tagName.toLowerCase();
     if (t === 'br') return '\n';
-    if (n.dataset.event) return `[${inner(n).trim() || 'event'}](event:${n.dataset.event})`;
+    if (n.dataset.event) return `[${inner(n).trim() || 'event'}](event:${n.dataset.event}${n.dataset.tab ? '?tab=' + n.dataset.tab : ''})`;
     if (t === 'a' && n.getAttribute('href')) { const h = n.getAttribute('href'); return `[${inner(n).trim()}](${h.startsWith('#event=') ? 'event:' + h.slice(7) : h})`; }
     if (t === 'b' || t === 'strong') return wrap(inner(n), '**');
     if (t === 'i' || t === 'em') return wrap(inner(n), '*');
@@ -1976,7 +2007,7 @@ function cellEl(c, k, n) {
 }
 function renderStory() {
   const show = !!INC && storyOpen; storyTheme();
-  $('storyBtn').classList.toggle('hidden', !INC); $('storyBtn').classList.toggle('on', show);
+  $('storyBtn').classList.toggle('hidden', !INC); $('exportBtn').classList.toggle('hidden', !INC || !writable || !incList.some(x => x.id === incId && !x.local)); $('storyBtn').classList.toggle('on', show);
   document.body.classList.toggle('has-story', show); $('story').classList.toggle('hidden', !show);
   if (!show || storyEditing) return;  // while a cell is edited, its DOM is left alone
   const cells = storyCells(), top = $('storyBody').scrollTop;
@@ -1984,6 +2015,7 @@ function renderStory() {
   cells.forEach((c, k) => storyRoot.append(cellEl(c, k, cells.length)));
   if (!cells.length) storyRoot.append(cleanHTML(`<p class="sv-empty">${READONLY ? 'No story for this incident.' : 'No story yet. Add a cell to write one: markdown, with links to events.'}</p>`));
   if (!READONLY) storyRoot.append(cleanHTML(`<button class="sv-add" data-a="append">+ Add a cell</button>`));  // (a shadow root has no insertAdjacentHTML)
+  for (const fig of storyRoot.querySelectorAll('[data-forel]')) drawFigure(fig);
   let n = 0, bad = 0;
   for (const el of storyRoot.querySelectorAll('[data-event], a[href^="#event="]')) {
     if (!el.dataset.event) el.dataset.event = el.getAttribute('href').slice(7);
@@ -2007,6 +2039,98 @@ function markStory() {  // highlight the links to the open event
   storyRoot.querySelectorAll('.sv-cell:not(.editing) [data-event]').forEach(el => el.classList.toggle('cur', el.dataset.event === id));
 }
 
+// ---- figures the viewer draws in a cell from the dataset (agents write only the element; the editor keeps it as is):
+// <figure data-forel="timeline" data-events="<id> <id> ..."> the events on a timeline, numbered in time order, a lane
+//   per agent (data-lanes="channel": per channel); data-others adds the lanes' other events in grey; data-from/data-to
+//   set the range. A marker is an event link, colored by its tag in this incident, else by its agent.
+// <figure data-forel="activity"> events over time, stacked by agent (data-by="channel": by channel, "none": one
+//   series); data-from/data-to limit it. A bar opens the first event in it.
+// A <figcaption> inside the figure is kept, under the drawing.
+function drawFigure(fig) {
+  fig.querySelectorAll(':scope > .fx-out').forEach(n => n.remove());
+  let html;
+  try { html = fig.dataset.forel === 'timeline' ? fxTimeline(fig) : fig.dataset.forel === 'activity' ? fxActivity(fig) : `<div class="fx-msg">Unknown figure “${esc(fig.dataset.forel)}”</div>`; }
+  catch (e) { html = `<div class="fx-msg">Could not draw this figure: ${esc(e.message)}</div>`; }
+  fig.insertAdjacentHTML('afterbegin', `<div class="fx-out">${html}</div>`);
+}
+const fxWidth = fig => Math.max(300, Math.round(fig.getBoundingClientRect().width) || 420);  // drawn at the panel's width, so text stays legible
+let fxW = 0, fxT;  // redraw the figures when the story panel is resized
+new ResizeObserver(([e]) => { const w = Math.round(e.contentRect.width); if (Math.abs(w - fxW) < 30) return; fxW = w;
+  clearTimeout(fxT); fxT = setTimeout(() => { if (storyEditing) return; storyRoot.querySelectorAll('[data-forel]').forEach(drawFigure); markStory(); }, 150); }).observe($('storyBody'));
+const fxHue = i => `hsl(${E[i]._a.hue} 58% 47%)`;
+const FX_PAL = ['#2f6fdb', '#e0702a', '#1f9d6a', '#c2417a', '#8a5cd0', '#b08a12', '#2a9bb8', '#7a7f3a'];
+function fxTicks(t0, t1, max = 6) {
+  const M = 60e3, H = 60 * M, D = 24 * H, steps = [M, 5 * M, 15 * M, 30 * M, H, 3 * H, 6 * H, 12 * H, D, 2 * D, 7 * D, 14 * D, 30 * D, 91 * D, 365 * D];
+  const step = steps.find(st => (t1 - t0) / st <= max) || steps[steps.length - 1], ticks = [];
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) ticks.push(t);
+  return { step, ticks };
+}
+function fxLabel(t, step, prev) {
+  const d = new Date(t), md = `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, hm = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  if (step >= 864e5) return md;
+  return prev == null || new Date(prev).getUTCDate() !== d.getUTCDate() ? `${md} ${hm}` : hm;
+}
+const fxRange = (fig, a, b) => { const f = parseT(fig.dataset.from), t = parseT(fig.dataset.to); return [isNaN(f) ? a : f, isNaN(t) ? b : t]; };
+function fxTimeline(fig) {
+  const ids = (fig.dataset.events || '').split(/[\s,]+/).filter(Boolean), miss = ids.filter(id => !byId.has(id));
+  const order = [...new Set(ids.map(id => byId.get(id)).filter(i => i != null))].sort((a, b) => a - b);
+  if (!order.length) return `<div class="fx-msg">No events to draw${miss.length ? ` (not in this dataset: ${esc(miss.slice(0, 3).join(', '))})` : ''}</div>`;
+  const byCh = fig.dataset.lanes === 'channel', key = i => byCh ? E[i]._c?.key ?? '' : E[i]._a.key;
+  const lanes = [], L = new Map();
+  for (const i of order) { const k = key(i); if (!L.has(k)) L.set(k, lanes.push(byCh ? (E[i]._c?.key ?? '(no channel)') : E[i]._a.name) - 1); }
+  let [t0, t1] = fxRange(fig, E[order[0]]._t, E[order[order.length - 1]]._t);
+  if (t1 - t0 < 60e3) { t0 -= 30e3; t1 += 30e3; }
+  const pd = (t1 - t0) * .04; t0 -= pd; t1 += pd;
+  const W = fxWidth(fig), G = Math.round(Math.min(W * .32, 14 + 6.3 * Math.max(...lanes.map(l => Math.min(l.length, 24))))), LH = 24, TOP = 8, H = TOP + lanes.length * LH + 22;
+  const x = t => (G + (t - t0) / (t1 - t0) * (W - G - 12)).toFixed(1), y = k => TOP + k * LH + LH / 2;
+  const { step, ticks } = fxTicks(t0, t1, Math.max(3, Math.floor((W - G) / 85)));
+  let s = ticks.map((t, n) => `<line class="fx-grid" x1="${x(t)}" x2="${x(t)}" y1="${TOP}" y2="${H - 20}"/><text class="fx-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fxLabel(t, step, ticks[n - 1])}</text>`).join('');
+  s += lanes.map((l, k) => `<line class="fx-lane" x1="${G}" x2="${W - 12}" y1="${y(k)}" y2="${y(k)}"/><text class="fx-name" x="${G - 8}" y="${y(k) + 3.5}" text-anchor="end">${esc(snip(l, Math.max(6, Math.floor((G - 14) / 6.3) - 1)))}</text>`).join('');
+  if (fig.dataset.others != null && fig.dataset.others !== 'false') {  // the lanes' other events in the range, in grey
+    const mine = new Set(order);
+    for (let i = firstAtOrAfter(t0), c = 0; i < E.length && E[i]._t <= t1 && c < 3000; i++) {
+      const k = L.get(key(i)); if (k == null || mine.has(i)) continue;
+      s += `<circle class="fx-other" data-event="${esc(E[i].event_id)}" cx="${x(E[i]._t)}" cy="${y(k)}" r="2.8"/>`; c++;
+    }
+  }
+  s += order.map((i, n) => {
+    const tg = tagOf(actById.get(E[i].event_id)), cx = x(E[i]._t), cy = y(L.get(key(i)));
+    return `<g data-event="${esc(E[i].event_id)}"><circle cx="${cx}" cy="${cy}" r="8" style="fill:${esc(tg?.color || fxHue(i))}"/><text class="fx-num" x="${cx}" y="${cy + 3.2}" text-anchor="middle">${n + 1}</text></g>`;
+  }).join('');
+  return `<svg class="fx" viewBox="0 0 ${W} ${H}" role="img" aria-label="Timeline of ${order.length} events">${s}</svg>` +
+    (miss.length ? `<div class="fx-msg">Not in this dataset: ${esc(miss.slice(0, 3).join(', '))}${miss.length > 3 ? ` and ${miss.length - 3} more` : ''}</div>` : '');
+}
+function fxActivity(fig) {
+  if (!E.length) return '<div class="fx-msg">No dataset</div>';
+  const [f, t] = fxRange(fig, E[0]._t, E[E.length - 1]._t), lo = firstAtOrAfter(f), hi = firstAtOrAfter(t + 1);
+  if (hi <= lo) return '<div class="fx-msg">No events in this range</div>';
+  const t0 = E[lo]._t, t1 = E[hi - 1]._t, D = 864e5;
+  const bin = [36e5, 3 * 36e5, 6 * 36e5, 12 * 36e5, D, 7 * D, 30 * D].find(b => (t1 - t0) / b <= 90) || 30 * D;
+  const b0 = Math.floor(t0 / bin) * bin, nb = Math.floor((t1 - b0) / bin) + 1;
+  const by = fig.dataset.by || 'agent', sk = i => by === 'channel' ? E[i]._c?.key ?? '(no channel)' : by === 'none' ? 'events' : E[i]._a.key;
+  const tot = new Map(); for (let i = lo; i < hi; i++) tot.set(sk(i), (tot.get(sk(i)) || 0) + 1);
+  const top = [...tot.entries()].sort((a, b) => b[1] - a[1]).slice(0, 7).map(e => e[0]), ser = new Map(top.map((k, n) => [k, n]));
+  const other = tot.size > top.length, NS = top.length + (other ? 1 : 0);
+  const cnt = Array.from({ length: nb }, () => new Array(NS).fill(0)), first = new Array(nb).fill(-1);
+  for (let i = lo; i < hi; i++) { const b = Math.floor((E[i]._t - b0) / bin); cnt[b][ser.get(sk(i)) ?? top.length]++; if (first[b] < 0) first[b] = i; }
+  const color = n => n === top.length ? 'var(--line2)' : by === 'agent' ? `hsl(${agents.find(a => a.key === top[n]).hue} 58% 52%)` : FX_PAL[n % FX_PAL.length];
+  const name = n => n === top.length ? 'other' : by === 'agent' ? agents.find(a => a.key === top[n]).name : top[n];
+  const max = Math.max(...cnt.map(c => c.reduce((a, b) => a + b, 0))), W = fxWidth(fig), G = 12 + 6.5 * String(max).length, TOP = 6, PH = 110, H = TOP + PH + 20;
+  const bw = (W - G - 6) / nb, yv = v => TOP + PH - v / max * PH;
+  let s = [0, .5, 1].map(r => { const v = Math.round(max * r); return `<line class="fx-grid" x1="${G}" x2="${W - 6}" y1="${yv(v)}" y2="${yv(v)}"/><text class="fx-ax" x="${G - 5}" y="${yv(v) + 3.5}" text-anchor="end">${v}</text>`; }).join('');
+  const { step, ticks } = fxTicks(b0, b0 + nb * bin, Math.max(3, Math.floor((W - G) / 85)));
+  s += ticks.map((t, n) => `<text class="fx-ax" x="${(G + (t - b0) / bin * bw).toFixed(1)}" y="${H - 5}" text-anchor="middle">${fxLabel(t, step, ticks[n - 1])}</text>`).join('');
+  const blabel = b => { const d = new Date(b0 + b * bin), day = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; return bin >= D ? (bin > D ? `${bin === 7 * D ? 'week' : 'month'} from ${day}` : day) : `${day} ${pad(d.getUTCHours())}:00`; };
+  cnt.forEach((c, b) => {
+    const n = c.reduce((a, v) => a + v, 0); if (!n) return;
+    let acc = 0, rects = '';
+    c.forEach((v, k) => { if (!v) return; rects += `<rect x="${(G + b * bw + .5).toFixed(1)}" y="${yv(acc + v).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${(v / max * PH).toFixed(1)}" style="fill:${color(k)}"/>`; acc += v; });
+    s += `<g class="fx-bar" data-event="${esc(E[first[b]].event_id)}" data-tip="${esc(blabel(b))}: ${n.toLocaleString()} event${n === 1 ? '' : 's'}">${rects}</g>`;
+  });
+  const key = NS > 1 ? `<div class="fx-key">${Array.from({ length: NS }, (_, n) => `<span><i style="background:${color(n)}"></i>${esc(snip(name(n), 24))}</span>`).join('')}</div>` : '';
+  return `<svg class="fx" viewBox="0 0 ${W} ${H}" role="img" aria-label="Events over time">${s}</svg>${key}`;
+}
+
 // ---- hovering an event link: who, where, when, and the start of the message
 const evTip = document.createElement('div'); evTip.id = 'evTip'; evTip.className = 'hidden'; document.body.append(evTip);
 function showEvTip(el, x, y) {
@@ -2018,6 +2142,7 @@ function showEvTip(el, x, y) {
       `<div class="s">${fmtT(e._t)} UTC${tg ? ` · <span class="tg" style="--tc:${esc(tg.color)}">${esc(tg.label)}</span>` : ''}${a?.pinned ? ` · P${a.priority}` : ' · not pinned'}</div>` +
       `<div class="m">${esc(snip(e.text || e.reasoning || e.tool, 260))}</div>`;
   }
+  if (el.dataset.tip) evTip.insertAdjacentHTML('afterbegin', `<div class="h"><b>${esc(el.dataset.tip)}</b></div><div class="s">Click to open its first event:</div>`);
   evTip.classList.remove('hidden');
   const w = evTip.offsetWidth, h = evTip.offsetHeight;
   evTip.style.left = Math.max(8, Math.min(x + 12, innerWidth - w - 8)) + 'px';
@@ -2031,9 +2156,15 @@ storyRoot.addEventListener('focusin', ev => { const el = ev.target.closest?.('[d
 storyRoot.addEventListener('focusout', () => evTip.classList.add('hidden'));
 
 // ---- clicks: event links, cell tools, the editor's toolbar
+// Where a link opens its event: data-tab="agent" or "channel" on the link opens it in its agent's or channel's tab
+// (opened if new), "event" just opens the event; links without data-tab follow the incident's story_links.
 function storyGo(ev) {
   const el = ev.target.closest?.('[data-event]'); if (!el) return;
-  ev.preventDefault(); const i = byId.get(String(el.dataset.event)); if (i != null) setFocus(i);
+  ev.preventDefault(); const i = byId.get(String(el.dataset.event)); if (i == null) return;
+  const tab = el.closest('[data-tab]')?.dataset.tab || INC?.story_links;
+  if (tab === 'agent') openTab('agent', E[i]._a, i);
+  else if (tab === 'channel' && E[i]._c) openTab('channel', E[i]._c, i);
+  else setFocus(i);
 }
 storyRoot.addEventListener('mousedown', ev => { if (ev.target.closest?.('.sv-bar button')) ev.preventDefault(); });  // keep the editor's selection
 storyRoot.addEventListener('click', ev => {
@@ -2152,6 +2283,22 @@ function finishEdit(keep) {
   c.body = v.split('\n'); c.author = 'human';  // the lock stays as the person set it
   changed();
 }
+$('exportBtn').onclick = async () => {  // save pending edits, then the server zips the incident file and its data
+  const id = incId, b = $('exportBtn'); if (!id || b.disabled) return;
+  if (storyEditing) finishEdit(true);
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await save(); }
+  while (saving) await new Promise(r => setTimeout(r, 100));
+  b.disabled = true; status('Exporting…');
+  try {
+    const r = await fetch(`export/${encodeURIComponent(id)}.zip`, { cache: 'no-store' });
+    if (!r.ok) throw new Error((await r.text()).match(/<p>Message: (.*?)\.?<\/p>/)?.[1] || `HTTP ${r.status}`);
+    const blob = await r.blob(), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `${id}.zip`; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    status(`Exported ${id}.zip (${(blob.size / 1e6).toFixed(1)} MB, ${r.headers.get('X-Forel-Export')})`);
+  } catch (e) { status(`Export failed: ${e.message}`); }
+  finally { b.disabled = false; }
+};
 $('storyBtn').onclick = () => { storyOpen = !storyOpen; try { localStorage.setItem('storyOpen', storyOpen ? '1' : '0'); } catch {} renderStory(); draw(); };
 $('storyAdd').onclick = () => addCell(storyCells().length);
 $('storyFold').onclick = () => {
@@ -2173,7 +2320,7 @@ $('storyFold').onclick = () => {
   const g = $('storyGrip'), main = document.body;
   g.onpointerdown = e => {
     g.setPointerCapture(e.pointerId); g.classList.add('drag');
-    g.onpointermove = m => { const w = Math.max(260, Math.min(innerWidth * 0.7, innerWidth - m.clientX)); main.style.setProperty('--story-w', w + 'px'); draw(); };
+    g.onpointermove = m => { const w = Math.max(260, Math.min(innerWidth * 0.7, m.clientX)); main.style.setProperty('--story-w', w + 'px'); draw(); };
     g.onpointerup = () => { g.onpointermove = null; g.classList.remove('drag'); try { localStorage.setItem('storyW', main.style.getPropertyValue('--story-w')); } catch {} };
   };
   g.ondblclick = () => { main.style.removeProperty('--story-w'); try { localStorage.removeItem('storyW'); } catch {} draw(); };

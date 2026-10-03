@@ -155,40 +155,54 @@ quiet. These become the leads in step 5.
 ## 5. Write the overview story
 
 The person's way in is one incident file, `incidents/overview.json`, that covers the whole dataset and tells its
-**story** in cells ([docs/format.md](docs/format.md#story-cells)). Its `from_to` spans the dataset. Write these cells,
-each starting with a heading:
+**story** in cells ([docs/format.md](docs/format.md#story-cells)). Keep it short: **about one page of text and three
+plots**. The person reads it in two minutes and then asks for more. The timelines carry the stories; the text only
+points at them.
 
-1. **At a glance.** The time period, the number of events, agents (and of which types), sources and channels. When
-   the agents were active, as a chart: events per day, or per agent over time. Add a short table of the most active
-   agents and channels.
-2. **How this dataset was built.** Where the traces came from, how agents were identified and with what coverage,
-   what source and channel mean here, and anything left out or uncertain.
-3. **What the agents are doing.** The main activities, phases and relationships, in plain language, with links to
-   the events that show them. One cell per phase or theme if there are several.
-4. **Worth digging into.** Three to seven leads, from your reading: the interesting phenomena. For each: what
-   happened, why it is interesting, the two to five events that show it (linked), and where to look in the viewer (an
-   agent's tab, a channel, a time range). Say how sure you are.
+Set `"story_links": "channel"` in the file, so that a click on any link or timeline marker opens the event in its
+channel's tab, read in context. Use `"agent"` instead if the record is per-agent logs rather than shared places.
+`from_to` spans the dataset. Write these cells:
 
-Rules for the cells:
+1. **Orientation.** One paragraph of 50 to 60 words: what this data is. Who the agents are, where they act, over
+   what period, and what they were trying to do. Then one line of numbers: agents (and of which types), first and
+   last date, events, channels. Then an activity chart: `<figure data-forel="activity"></figure>`. Then one line
+   that introduces the **tags** (below): the kinds of things the agents are doing, each with its color, e.g.
+   `<span style="color:#2f6fdb">●</span> Coordinating`.
+2. **How the data was built.** Only if the conversion relied on a strong inference, in one to three lines, e.g.
+   "Agent names are recovered from the `--- AgentNN` signature at the end of posts (91% of posts); unsigned edits are
+   shown as unknown." Skip this cell when the conversion was a direct mapping. Put the full notes in
+   `scripts/NOTES.md`, so you can answer when the person asks.
+3. **Three stories**, one cell each: what the agents are doing, told through three crisp episodes you found by
+   reading. For each:
+   - a heading that names the episode;
+   - **two sentences**: what happens and why it matters, pointing at the timeline's numbered markers, e.g.
+     "Dec14 hands the lead to Jan13 (3), then to Sep09 (7)";
+   - a timeline of the 4 to 12 events that tell it, which the viewer draws from the dataset:
+     `<figure data-forel="timeline" data-events="<id> <id> ..."></figure>`. Its markers are numbered in time order,
+     with a lane per agent. They open their event on click and preview it on hover. Add `data-lanes="channel"` for a
+     lane per channel, and `data-others` to show the lanes' other events in grey, when the surrounding activity
+     matters.
 
-- **Link every claim** to an event: `<a data-event="<event_id>">14:02</a>` in HTML, or `[14:02](event:<event_id>)`
-  in markdown. Clicking a link opens the event, and hovering shows a preview.
-- **Charts** are inline SVG in an HTML cell. Generate them with a script from the data. Make them interactive the
-  way the viewer allows: any SVG element with `data-event` opens that event, so let a bar or point open a
-  representative event, and add a `<title>` to show a tooltip. Scripts in cells are removed. Use the viewer's color
-  variables (`var(--ink)`, `var(--muted)`, `var(--line)`, `var(--accent)`) so charts work in the light and dark themes.
-- Be concrete and brief. Quote the agents' own words, word for word, where they say it best.
+Choose the three stories to show the range of what happens: the main activity, an interaction between agents, and
+something surprising. List the other leads you found in `scripts/NOTES.md`, and mention them in one line each when
+you hand over in step 6.
 
-Then **pin** the events the story relies on: 20 to 60 representative events across the leads and themes, as
-`actions`. Give the incident **tags** for the main kinds of activity or positions you found, two to five, and tag
-each pinned event **by reading it**: the tags are your interpretation. Put a `comment` on the five or so events a
-person must read first.
+**Show the interface as you go.** The person has never used forel, so the story doubles as its tour. Where an
+action first comes up, say in a short clause what it does, especially when a click opens a new tab. For example:
+"click a numbered marker to open that post in its channel's tab, with the conversation around it; hover to preview
+it", "a bar opens the first event of that week", "click a tag in the Tags panel to list all its events". Use three or
+four of these across the cells, never a separate manual.
+
+Then **pin** every event the timelines use, as `actions`. Give the incident three to five **tags** for the different
+things the agents are doing (e.g. "Coordinating", "Reporting results", "Arguing over the rules", "Off task"), and
+tag each pinned event **by reading it**: the tags are your interpretation. They color the timeline markers, and they
+list in the Tags panel. Introduce them in the orientation cell, as above. Put a `comment` on the few events a person
+must read first.
 
 Check it with `forel check forel-workspace overview`, and fix what it reports.
 
-When a lead is big enough to deserve its own timeline, you may also write it as its own incident
-(`incidents/<short-name>.json`, with its own story), and link to it from the overview. Ask the person first if there
-are more than one or two.
+If a story deserves its own investigation, you can later write it as its own incident
+(`incidents/<short-name>.json`, with its own story), when the person wants to dig in.
 
 ## 6. Open the viewer and work with the person
 
@@ -205,9 +219,11 @@ It prints the URL. If port 8000 is taken, it uses the next free one. Open the ov
 - Otherwise run `forel serve` with `--open --path "?dataset=<id>&incident=overview"` to open the default browser,
   or give the person the URL.
 
-Then tell the person in a few lines what they are looking at:
+Then tell the person in a few lines what they are looking at, and list the other leads from your notes in one line
+each:
 
-- The **story** on the right is your overview. Its links open events on the left.
+- The **story** panel is your overview. Its links and timeline markers open events in the event list, in their
+  channel's tab.
 - The **timeline** at the top shows the pinned events: lanes by agent or by channel, + and − to zoom, and a click
   on an empty spot opens the event nearest that moment.
 - The **event list** shows events in full. Click an agent's name or a channel to open its tab; **+** searches.

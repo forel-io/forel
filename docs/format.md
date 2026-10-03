@@ -87,7 +87,9 @@ One file per incident, `incidents/<short-name>.json` (letters, digits, `-` and `
   - `comment` is for the key events only: about five per incident, the ones a person must read to understand what
     happened. Leave it as `""` for every other event; its tag says what it is. If a comment quotes the event, quote
     it word for word (`forel check` verifies quotes).
-- `story` (optional) is the incident told as a sequence of cells, shown in the panel on the right. See below.
+- `story` (optional) is the incident told as a sequence of cells, shown in the story panel. See below.
+- `story_links` (optional): `"agent"` or `"channel"` makes the story's links open their event in its agent's or
+  channel's tab (see [Where a link opens](#story-cells)). Leave it out to just open the event.
 - `story_style` (optional) is CSS for every story cell (a string or a list of lines). The cells sit in their own
   shadow root, so it doesn't affect the rest of the viewer.
 - `view` is written by the viewer: the tabs, open event and timeline settings (scope, lanes, zoom) the person last
@@ -112,15 +114,48 @@ Each cell is `{"id": "c-1", "author": "agent", "format": "html", "body": [lines]
 **Links to events.** Link each claim to the event that supports it, with its exact, full `event_id`. In HTML, any
 element with `data-event="<event_id>"` is a link, usually `<a data-event="...">17:42</a>`, but SVG shapes work too,
 so a chart's bars can open the events they count. In markdown, write `[17:42](event:<event_id>)`. Clicking a link
-opens the event on the left; hovering previews its agent, channel and message; the link takes the event's tag color.
+opens the event in the event list; hovering previews its agent, channel and message; the link takes the event's tag
+color.
 
-**Charts.** Inline `<svg>` in an HTML cell. Scripts and `on*` handlers are removed, so interactivity comes from
+**Where a link opens.** By default a link just opens its event. The incident's `"story_links": "agent"` or
+`"channel"` makes every link open its event in that event's agent tab or channel tab, opened if it isn't yet, so the
+person reads it in context. A single link can override this with `data-tab="agent"`, `"channel"` or `"event"` in
+HTML (on the link or on any element around it, such as a figure), or `[17:42](event:<event_id>?tab=agent)` in
+markdown.
+
+**Figures the viewer draws.** Put these elements in an HTML cell and the viewer draws them from the dataset, at the
+panel's width and in its theme. Everything in them is clickable and previews on hover. A `<figcaption>` inside is
+kept.
+
+- `<figure data-forel="timeline" data-events="<id> <id> ..."></figure>`: those events on a time axis, a lane per
+  agent, numbered 1, 2, 3 ... in time order (so the text can refer to "(3)"), and colored by their tag in this
+  incident (else by agent). Options: `data-lanes="channel"` for a lane per channel; `data-others` to add, in grey,
+  the other events of those lanes in the time range; `data-from` and `data-to` (ISO times) to set the range.
+- `<figure data-forel="activity"></figure>`: the number of events over time (by hour, day, week or month to fit),
+  stacked by the most active agents. Options: `data-by="channel"` (stack by channel) or `"none"`; `data-from` and
+  `data-to`. A bar opens the first event in it.
+
+`forel check` verifies that every event a timeline names exists.
+
+**Charts of your own.** Inline `<svg>` in an HTML cell. Scripts and `on*` handlers are removed, so interactivity comes from
 `data-event` links, hover previews and SVG `<title>` tooltips. The viewer has a light and a dark theme: use its
 color variables (`var(--ink)`, `var(--muted)`, `var(--line)`, `var(--line2)`, `var(--panel)`, `var(--accent)`), or
 give dark values under `:host([data-theme="dark"]) { ... }` in `story_style`. Don't use
 `@media (prefers-color-scheme: dark)`, which follows the computer's setting even when the viewer is in light mode.
 
 One cell per step of the story, with a heading, keeps cells easy to collapse and reorder.
+
+## Exported incidents
+
+`forel export WORKSPACE <incident>` (or the viewer's Export button) writes `<incident>.zip`, holding one folder that
+is a workspace of its own: `data/index.json`, `data/<dataset>.jsonl`, `incidents/<incident>.json` (and its
+`.locked/` record), a `README.md`, and `forel-export.json`, which says what was exported.
+
+The zip is at most 60 MB (`--max-mb` changes it). If the whole dataset doesn't fit, the dataset is cut, keeping events
+in this order until the limit: the events the incident pins or its story links to; every event of the agents and
+channels of those events, from inside `from_to` outwards, before and after; then other events, the same way. The
+dataset's title then ends in "(excerpt)", and `forel-export.json` has `"cut": true`, the relevant agents and channels,
+and what was kept (`kept`).
 
 ## Editing an incident while the viewer is open
 
