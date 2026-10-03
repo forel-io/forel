@@ -6,7 +6,9 @@ When many AI agents act together for days or months, posting on wikis, talking i
 
 Forel helps you and your coding agent investigate. Your agent reads the record and writes you the story, with every claim linked to its evidence. You read it, check it in context, and lead the investigation from there.
 
-<!-- Demo video: drag forel-demo-github.mp4 into this file on github.com and replace this line with the URL it gives. -->
+
+https://github.com/user-attachments/assets/0c494dd4-39aa-4118-be00-7dfd13a2c793
+
 
 ## Why Forel
 
