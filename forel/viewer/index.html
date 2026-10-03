@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>forel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 /* Layers, darkest to lightest (light theme): chrome (toolbars, tab strip) → panel (timeline, sidebar) → bg (the event list).
    Blue (--accent) marks controls; yellow-orange (--focus) marks where you are: the open event, the active tab. */
@@ -14,6 +14,7 @@
   --line: #d2d5db; --line2: #c2c6cd; --accent: #2563d9; --focus: #f0a000; --mark: #ffe25a; --mark-current: #ff9d2e;
   --lane: rgba(20,30,50,.035); --hover: rgba(20,30,50,.06); --blk: 52%; --note: #fff6d6; --note-line: #e2c560;
   --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif: "IBM Plex Serif", Georgia, "Times New Roman", serif;
   font-family: var(--sans);
 }
 @media (prefers-color-scheme: dark) {
@@ -1870,7 +1871,7 @@ svg a.cur[data-event] { background: none; outline: none; }  /* an SVG link shows
 .sv-tools button:hover:not(:disabled), .sv-bar button:hover { border-color: var(--line2); background: var(--hover); }
 .sv-tools button:disabled { opacity: .3; cursor: default; }
 .sv-cell.shut .sv-body { display: none; }
-.sv-body { padding: 0 2px 0 24px; min-width: 0; }
+.sv-body { padding: 0 2px 0 24px; min-width: 0; font-family: var(--serif); }  /* stories read in a serif, headings included */
 .sv-body > :first-child { margin-top: 0; }
 .sv-body > :is(h1, h2):first-child { border-top: 0; padding-top: 0; }
 .sv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; position: sticky; top: 0; z-index: 2; margin: 2px 0 8px 24px; padding: 2px; background: var(--panel); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
