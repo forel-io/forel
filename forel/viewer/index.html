@@ -1843,6 +1843,8 @@ svg.fx .fx-grid { stroke: var(--line); stroke-width: 1; } svg.fx .fx-lane { stro
 svg.fx g[data-event] circle { stroke: var(--panel); stroke-width: 1.5; }
 svg.fx g[data-event]:hover circle, svg.fx g[data-event].cur circle { stroke: var(--ink); stroke-width: 2; }
 svg.fx .fx-num { fill: #fff; font-size: 9px; font-weight: 700; pointer-events: none; }
+svg.fx g[data-event] text { stroke: none; }  /* a selected marker outlines its shapes, not its number */
+svg.fx .fx-lead { stroke: var(--muted); stroke-width: 1; opacity: .6; } svg.fx g[data-event]:hover .fx-lead, svg.fx g[data-event].cur .fx-lead { opacity: 1; stroke: var(--ink); }
 svg.fx .fx-other { fill: var(--muted); opacity: .45; } svg.fx .fx-other:hover { opacity: 1; }
 svg.fx .fx-bar:hover rect { opacity: .75; } svg.fx .fx-act { fill: var(--muted); opacity: .45; }
 .fx-key { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 11.5px; color: var(--muted); margin: 2px 0 0; }
@@ -1874,6 +1876,10 @@ svg a.cur[data-event] { background: none; }
 .sv-cell.shut .sv-body { display: none; }
 .sv-body { padding: 0 2px 0 24px; min-width: 0; font-family: var(--serif); }  /* stories read in a serif, headings included */
 .sv-body > :first-child { margin-top: 0; }
+/* A story's title block: a small-caps line, the title, then the one-line summary (story_style can restyle any of it) */
+:where(.sv-body .eyebrow) { font: 500 12px/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+:where(.sv-body .eyebrow) + h1 { font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; margin: 0 0 12px; }
+:where(.sv-body) .lede { font-size: 17px; line-height: 1.55; }
 .sv-body > :is(h1, h2):first-child { border-top: 0; padding-top: 0; }
 .sv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; position: sticky; top: 0; z-index: 2; margin: 2px 0 8px 24px; padding: 2px; background: var(--panel); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
 .sv-bar .sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--line2); }
@@ -2089,8 +2095,25 @@ function fxTimeline(fig) {
   let [t0, t1] = act ? fxRange(fig, Math.min(E[0]._t, E[order[0]]._t), Math.max(E[E.length - 1]._t, E[order[order.length - 1]]._t)) : fxRange(fig, E[order[0]]._t, E[order[order.length - 1]]._t);
   if (t1 - t0 < 60e3) { t0 -= 30e3; t1 += 30e3; }
   const pd = (t1 - t0) * .04; t0 -= pd; t1 += pd;
-  const W = fxWidth(fig), G = Math.round(Math.min(W * .32, 14 + 6.3 * Math.max(...lanes.map(l => Math.min(l.length, 24))))), LH = 24, TOP = 8 + AH, H = TOP + lanes.length * LH + 22;
-  const x = t => (G + (t - t0) / (t1 - t0) * (W - G - 12)).toFixed(1), y = k => TOP + k * LH + LH / 2;
+  const W = fxWidth(fig), G = Math.round(Math.min(W * .32, 14 + 6.3 * Math.max(...lanes.map(l => Math.min(l.length, 24)))));
+  const X = t => G + (t - t0) / (t1 - t0) * (W - G - 12), x = t => X(t).toFixed(1);
+  // Numbered labels sit above their lane, each joined to its event's dot by a short line, spread apart so that no
+  // label hides another or a dot. A crowded lane gets a second row of labels.
+  const R = 8, GAP = 2 * R + 2, lab = new Map(), rowsOf = new Array(lanes.length).fill(0);
+  lanes.forEach((_, k) => {
+    const mine = order.map((i, n) => ({ i, n, cx: X(E[i]._t) })).filter(o => L.get(key(o.i)) === k);
+    if (!mine.length) return;
+    const lo = G + R, hi = W - 12 - R, rows = mine.length * GAP > hi - lo ? 2 : 1; rowsOf[k] = rows;
+    for (let r = 0; r < rows; r++) {
+      const ms = mine.filter((_, j) => j % rows === r), sp = Math.min(GAP, (hi - lo) / Math.max(1, ms.length - 1));
+      ms.forEach((o, j) => { o.lx = Math.max(o.cx, j ? ms[j - 1].lx + sp : lo); });  // left to right, never closer than sp
+      for (let j = ms.length - 1; j >= 0; j--) ms[j].lx = Math.min(ms[j].lx, j < ms.length - 1 ? ms[j + 1].lx - sp : hi);  // then back from the right edge
+      ms.forEach(o => { o.row = r; lab.set(o.i, o); });
+    }
+  });
+  const band = k => rowsOf[k] * (GAP + 2) + 8, laneY = [], TOP = 8 + AH; let acc = TOP;
+  lanes.forEach((_, k) => { acc += band(k); laneY.push(acc); acc += 12; });
+  const H = acc + 22, y = k => laneY[k];
   const { step, ticks } = fxTicks(t0, t1, Math.max(3, Math.floor((W - G) / 85)));
   let s = ticks.map((t, n) => `<line class="fx-grid" x1="${x(t)}" x2="${x(t)}" y1="${TOP - AH}" y2="${H - 20}"/><text class="fx-ax" x="${x(t)}" y="${H - 6}" text-anchor="middle">${fxLabel(t, step, ticks[n - 1])}</text>`).join('');
   s += lanes.map((l, k) => `<line class="fx-lane" x1="${G}" x2="${W - 12}" y1="${y(k)}" y2="${y(k)}"/><text class="fx-name" x="${G - 8}" y="${y(k) + 3.5}" text-anchor="end">${esc(snip(l, Math.max(6, Math.floor((G - 14) / 6.3) - 1)))}</text>`).join('');
@@ -2114,8 +2137,11 @@ function fxTimeline(fig) {
     }
   }
   s += order.map((i, n) => {
-    const tg = tagOf(actById.get(E[i].event_id)), cx = x(E[i]._t), cy = y(L.get(key(i)));
-    return `<g data-event="${esc(E[i].event_id)}"><circle cx="${cx}" cy="${cy}" r="8" style="fill:${esc(tg?.color || fxHue(i))}"/><text class="fx-num" x="${cx}" y="${cy + 3.2}" text-anchor="middle">${n + 1}</text></g>`;
+    const tg = tagOf(actById.get(E[i].event_id)), k = L.get(key(i)), cx = x(E[i]._t), cy = y(k), o = lab.get(i), c = esc(tg?.color || fxHue(i));
+    const ly = cy - band(k) + 4 + R + o.row * (GAP + 2), lx = o.lx.toFixed(1);
+    return `<g data-event="${esc(E[i].event_id)}"><line class="fx-lead" x1="${lx}" y1="${ly + R}" x2="${cx}" y2="${cy - 4}"/>` +
+      `<circle class="fx-dot" cx="${cx}" cy="${cy}" r="4.5" style="fill:${c}"/><circle cx="${lx}" cy="${ly}" r="${R}" style="fill:${c}"/>` +
+      `<text class="fx-num" x="${lx}" y="${ly + 3.2}" text-anchor="middle">${n + 1}</text></g>`;
   }).join('');
   return `<svg class="fx" viewBox="0 0 ${W} ${H}" role="img" aria-label="Timeline of ${order.length} events">${s}</svg>` +
     (miss.length ? `<div class="fx-msg">Not in this dataset: ${esc(miss.slice(0, 3).join(', '))}${miss.length > 3 ? ` and ${miss.length - 3} more` : ''}</div>` : '');

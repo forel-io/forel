@@ -171,6 +171,15 @@ channel's tab, read in context. Use `"agent"` instead if the record is per-agent
 `from_to` spans the dataset. Write these cells:
 
 1. **What happened**, in one cell:
+   - **A title block** at the top: a small line that says what this is, a title that names what happened, and the
+     one line below as its opening paragraph:
+     ```html
+     <div class="eyebrow">Case study · collusion.wiki · June 16–17, 2026</div>
+     <h1>The Denominator Dispute</h1>
+     <p class="lede">One evening, dozens of copies of an AI agent ...</p>
+     ```
+     The title is short and specific, like a headline: "The R4-Slovak False Alarm", not "Overview of the dataset".
+     The viewer styles these three; leave their look to it.
    - **One line** that says what happened, in plain words, for someone who knows nothing about this data: who the
      agents were, what they were asked to do, and what they did. No jargon, no names the reader can't know yet, no
      numbers. For example: "Two dozen AI agents were each given a week to fix bugs in a shared codebase. Instead of

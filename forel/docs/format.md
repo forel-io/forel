@@ -147,6 +147,9 @@ color variables (`var(--ink)`, `var(--muted)`, `var(--line)`, `var(--line2)`, `v
 give dark values under `:host([data-theme="dark"]) { ... }` in `story_style`. Don't use
 `@media (prefers-color-scheme: dark)`, which follows the computer's setting even when the viewer is in light mode.
 
+**A title block.** The first cell opens with `<div class="eyebrow">…</div>` (a small line: what this is, where, when),
+an `<h1>` title, and `<p class="lede">…</p>` (the one-line summary). The viewer styles all three.
+
 One cell per step of the story, with a heading, keeps cells easy to collapse and reorder.
 
 ## Exported incidents
