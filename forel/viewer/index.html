@@ -320,7 +320,7 @@ body.has-story > header { grid-column: 1 / -1; }
       <span class="seg" id="laneSeg" title="Lanes: a line per agent, or a line per channel">
         <button class="btn on" id="laneAgent">by agent</button><button class="btn" id="laneChannel">by channel</button>
       </span>
-      <label id="othersLbl"><input type="checkbox" id="showOthers"> <span id="othersTxt">other events</span></label>
+      <label id="othersLbl"><input type="checkbox" id="showOthers" checked> <span id="othersTxt">other events</span></label>
       <span class="seg"><button class="btn" id="zOut" title="Zoom out">−</button><button class="btn" id="zIn" title="Zoom in">+</button><button class="btn" id="zFit" title="Fit the whole scope">Fit</button></span>
     </div>
     <span class="small" id="tlInfo"></span>
@@ -398,7 +398,7 @@ let incList = [], INC = null, incId = null, actById = new Map();
 let focus = -1, ctxBy = 'all';                    // ctxBy: what the event list (its open tab) follows: 'all', 'agent' or 'channel'
 let channels = [], chanByKey = new Map(), chFilter = '';  // channels: [{key, n, idxs, agents}]
 let scope = 'all', xmode = 'time', view = { a: 0, b: 1 }, lanes = [], laneOf = new Map();
-let hidden = new Set(), hits = [], hitCur = -1, showOthers = false;
+let hidden = new Set(), hits = [], hitCur = -1, showOthers = true;
 const writable = location.protocol.startsWith('http');
 // Read-only (a public demo): <html data-readonly>, or ?readonly. Nothing can be edited or saved.
 const READONLY = document.documentElement.hasAttribute('data-readonly') || new URLSearchParams(location.search).has('readonly');
@@ -1666,7 +1666,7 @@ function layoutOf() {
       return s;
     }),
     cur: tabCur, event: ev(focus),
-    timeline: { scope, lanes: laneMode, others: showOthers || undefined, ...(([a, b]) => ({ from: new Date(a).toISOString(), to: new Date(b).toISOString() }))(viewTimeRange()) },
+    timeline: { scope, lanes: laneMode, others: showOthers, ...(([a, b]) => ({ from: new Date(a).toISOString(), to: new Date(b).toISOString() }))(viewTimeRange()) },
   };
 }
 function noteLayout() {  // the layout may have changed: save it into the open incident shortly after
@@ -1709,7 +1709,7 @@ function restoreLayout(l) {  // rebuild the tabs and the timeline from a saved l
     const cur = Math.max(0, Math.min(T.length - 1, +l.cur || 0));
     tabs = T; tabCur = cur; ctxBy = T[cur].by; rows = []; rowsTab = null;
     const tl = l.timeline || {};
-    laneMode = tl.lanes === 'channel' ? 'channel' : 'agent'; showOthers = !!tl.others; $('showOthers').checked = showOthers;
+    laneMode = tl.lanes === 'channel' ? 'channel' : 'agent'; showOthers = tl.others !== false; $('showOthers').checked = showOthers;
     setScope(tl.scope === 'all' ? 'all' : 'incident');
     const a = parseT(tl.from), b = parseT(tl.to);
     if (!isNaN(a) && b > a) { [view.a, view.b] = toX(a, b); if (view.b - view.a < 6 && xmode === 'order') { view.a -= 3; view.b += 3; } }
