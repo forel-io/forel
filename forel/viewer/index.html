@@ -1850,7 +1850,8 @@ svg.fx .fx-bar:hover rect { opacity: .75; } svg.fx .fx-act { fill: var(--muted);
 .fx-msg { font-size: 12px; color: var(--muted); font-style: italic; }
 .cur:is(a, span)[data-event] { background: color-mix(in srgb, var(--focus) 26%, transparent); outline: 1px solid var(--focus); }
 svg .cur[data-event], svg [data-event].cur * { stroke: var(--focus); stroke-width: 2.5px; }
-svg a.cur[data-event] { background: none; outline: none; }  /* an SVG link shows its shape's outline, not a text link's box */
+svg [data-event], svg [data-event]:focus, svg [data-event]:focus-visible { outline: none; -webkit-tap-highlight-color: transparent; }  /* an SVG link shows state with its shape's stroke, not a box or the browser's focus ring */
+svg a.cur[data-event] { background: none; }
 .bad[data-event] { color: #d64545; text-decoration: line-through wavy; cursor: help; }
 /* cells */
 .sv-cell { border-bottom: 1px solid var(--line); padding: 4px 0 8px; font-family: var(--sans); }
