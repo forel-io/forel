@@ -1,13 +1,5 @@
 [
  {
-  "id": "ai-village",
-  "title": "AI Village (2026-01-12 to 2026-09-12)",
-  "file": "ai-village.json",
-  "events": 229013,
-  "from": "2026-01-12T17:59:30.325209Z",
-  "to": "2026-09-12T00:07:24.873877Z"
- },
- {
   "id": "web-traces",
   "title": "Open-web agent traces (wiki, RubyGems)",
   "file": "web-traces.jsonl",

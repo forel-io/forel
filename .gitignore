@@ -1,5 +1,5 @@
 .DS_Store
 __pycache__/
 
-# Gated dataset, and too large for GitHub
+# Local-only datasets
 data/ai-village.json

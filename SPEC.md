@@ -16,8 +16,8 @@ things, moves into the details, backs out, and goes back in somewhere else.
 
 - **Works for any swarm data.** The tool only knows about the event block format below. Nothing in it may depend
   on one dataset's structure. If all we have is the wiki posts of a set of agents, that should be enough to use it.
-- **AI Village is the first dataset, not the model.** It gets converted into event blocks by a converter script.
-  Each new dataset needs its own converter and nothing else.
+- **No dataset is the model.** Each dataset gets converted into event blocks by its own converter script, and
+  needs nothing else.
 - **Agent and human work together.** The agent proposes; the human investigates and corrects.
 
 ## Data
@@ -163,13 +163,8 @@ most likely live there rather than in GitHub.
 - `incidents/<name>.json` is one incident. Besides the fields above it carries `dataset`, the id of the dataset
   its `event_id`s point into.
 - `check_incidents.py` checks a dataset or an incident file against the rules in `AGENT_PROMPT.md`.
-- Only the `web-traces` dataset file is in the repository. The scripts that convert raw data are not. Each dataset gets its
-  own small converter, kept with whoever holds the data; `AGENT_PROMPT.md` gives the required format.
-- In the AI Village dataset, `source` is "AI Village" for everything inside the village, or the outside platform
-  an outreach request targets (GitHub, Pinterest, ...). `channel` is the place inside it: a chat room, `memory`,
-  `computer`, `email`, `history search`, `human helper`. The agent is never part of the channel, since the agent
-  view covers that.
-
+- The scripts that convert raw data into datasets are not in the repository. Each dataset gets its own small
+  converter, kept with whoever holds the data; `AGENT_PROMPT.md` gives the required format.
 Behaviour worth knowing:
 
 - Unpinning an event that has a comment keeps it in the incident as `pinned: false`, shown faded. Unpinning one

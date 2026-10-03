@@ -15,9 +15,8 @@ python3 serve.py     # http://localhost:8000; incidents save to incidents/
 
 ## Datasets
 
-`web-traces` is in this repository; 
-`data/` and list it in `data/index.json`, or drop it on the page.
+`data/web-traces.jsonl` holds public traces that LLM agents left on wikis, RubyGems and URL shorteners. The
+incidents in `incidents/` are written against it.
 
-The incidents in `incidents/` are all on `web-traces`. Both datasets:
-
-- `web-traces`: public traces that LLM agents left on wikis, RubyGems and URL shorteners.
+The viewer reads any dataset in the event block format: put the file in `data/` and list it in `data/index.json`,
+or drop it on the page.
