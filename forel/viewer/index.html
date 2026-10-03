@@ -1849,6 +1849,7 @@ svg.fx .fx-bar:hover rect { opacity: .75; } svg.fx .fx-act { fill: var(--muted);
 .fx-msg { font-size: 12px; color: var(--muted); font-style: italic; }
 .cur:is(a, span)[data-event] { background: color-mix(in srgb, var(--focus) 26%, transparent); outline: 1px solid var(--focus); }
 svg .cur[data-event], svg [data-event].cur * { stroke: var(--focus); stroke-width: 2.5px; }
+svg a.cur[data-event] { background: none; outline: none; }  /* an SVG link shows its shape's outline, not a text link's box */
 .bad[data-event] { color: #d64545; text-decoration: line-through wavy; cursor: help; }
 /* cells */
 .sv-cell { border-bottom: 1px solid var(--line); padding: 4px 0 8px; font-family: var(--sans); }
@@ -2034,10 +2035,11 @@ function renderStory() {
   $('storyFold').textContent = shut === cells.length && cells.length ? 'Expand all' : 'Collapse all'; $('storyFold').disabled = !cells.length;
   markStory();
 }
+let storyPicked = null;  // the link last clicked: while its event is open, only it is highlighted, not every link to that event
 function markStory() {  // highlight the links to the open event
   if (!INC || !storyOpen) return;
-  const id = focus >= 0 ? E[focus].event_id : null;
-  storyRoot.querySelectorAll('.sv-cell:not(.editing) [data-event]').forEach(el => el.classList.toggle('cur', el.dataset.event === id));
+  const id = focus >= 0 ? E[focus].event_id : null, only = storyPicked?.isConnected && storyPicked.dataset.event === id ? storyPicked : null;
+  storyRoot.querySelectorAll('.sv-cell:not(.editing) [data-event]').forEach(el => el.classList.toggle('cur', only ? el === only : el.dataset.event === id));
 }
 
 // ---- figures the viewer draws in a cell from the dataset (agents write only the element; the editor keeps it as is):
@@ -2177,6 +2179,7 @@ storyRoot.addEventListener('focusout', () => evTip.classList.add('hidden'));
 function storyGo(ev) {
   const el = ev.target.closest?.('[data-event]'); if (!el) return;
   ev.preventDefault(); const i = byId.get(String(el.dataset.event)); if (i == null) return;
+  storyPicked = el;
   const tab = el.closest('[data-tab]')?.dataset.tab || INC?.story_links;
   if (tab === 'agent') openTab('agent', E[i]._a, i);
   else if (tab === 'channel' && E[i]._c) openTab('channel', E[i]._c, i);
