@@ -5,8 +5,9 @@
     forel check [WORKSPACE] [INCIDENT...]  check incident files (or --dataset ID: a dataset)
     forel serve [WORKSPACE]                serve the viewer at http://localhost:8000
     forel export [WORKSPACE] INCIDENT      zip an incident and its data to share (max 60 MB: data cut to fit)
+    forel docs                             print the dataset and incident formats
 
-WORKSPACE defaults to the current folder. Formats: https://github.com/forel-io/forel/blob/main/docs/format.md
+WORKSPACE defaults to the current folder. Formats: `forel docs`
 """
 import argparse, json, os, sys
 
@@ -19,7 +20,7 @@ WORKSPACE_README = """# forel workspace
 - `scripts/`: the scripts that converted the raw traces and explored them
 
 `forel serve` opens the viewer on this folder. `forel check` checks the datasets and incidents.
-Formats: https://github.com/forel-io/forel/blob/main/docs/format.md
+Formats: `forel docs`, or https://github.com/forel-io/forel/blob/main/forel/docs/format.md
 """
 
 
@@ -95,6 +96,12 @@ def cmd_export(a):
     return export.main(a.workspace, a.incident, a.output, int(a.max_mb * 1_000_000))
 
 
+def cmd_docs(a):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs', 'format.md'), encoding='utf-8') as f:
+        sys.stdout.write(f.read())
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='forel', description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--version', action='version', version=f'forel {__version__}')
@@ -124,6 +131,8 @@ def main(argv=None):
     p.add_argument('--max-mb', type=float, default=60, help='size limit of the zip in MB (default 60); a bigger dataset is cut '
                    'to the events of the incident\'s agents and channels around its time range')
     p.set_defaults(fn=cmd_export)
+    p = sub.add_parser('docs', help='print the dataset and incident formats')
+    p.set_defaults(fn=cmd_docs)
     a = ap.parse_args(argv)
     if a.cmd == 'check' and not os.path.isdir(a.workspace):
         a.incidents.insert(0, a.workspace); a.workspace = '.'  # `forel check overview`: incidents of the current folder

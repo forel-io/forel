@@ -25,7 +25,8 @@ Keep the person informed as you go: a line or two at the end of each step. Don't
 answer by looking at the data. Ask when a choice is theirs to make: which traces to include, whether the data can
 leave their machine (it never needs to: forel runs locally), or what they most want to learn, if they haven't said.
 
-The exact file formats are in [docs/format.md](docs/format.md). Read it before step 3.
+The exact file formats come with forel: run `forel docs` once it is installed (step 1) and read them before step 3.
+They are also [on GitHub](https://github.com/forel-io/forel/blob/main/forel/docs/format.md).
 
 ## 1. Install forel and create a workspace
 
@@ -69,7 +70,7 @@ Find out what you have before converting anything:
 ## 3. Convert the traces into a dataset
 
 Write `scripts/convert.py`: it reads the raw traces and writes `data/<id>.jsonl`, one event block per line
-([docs/format.md](docs/format.md#dataset-format)). Then run `forel index forel-workspace` and
+(`forel docs`, [Dataset format](https://github.com/forel-io/forel/blob/main/forel/docs/format.md#dataset-format)). Then run `forel index forel-workspace` and
 `forel check forel-workspace --dataset <id>`.
 
 Keep the script rerunnable. You will rerun it when you find a mistake, and the incidents point at `event_id`s, so
@@ -155,7 +156,7 @@ quiet. These become the leads in step 5.
 ## 5. Write the overview story
 
 The person's way in is one incident file, `incidents/overview.json`, that covers the whole dataset and tells its
-**story** in cells ([docs/format.md](docs/format.md#story-cells)). Keep it short: **about one page of text and three
+**story** in cells (`forel docs`, [Story cells](https://github.com/forel-io/forel/blob/main/forel/docs/format.md#story-cells)). Keep it short: **about one page of text and three
 plots**. The person reads it in two minutes and then asks for more. The timelines carry the stories; the text only
 points at them.
 

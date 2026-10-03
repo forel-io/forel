@@ -2498,7 +2498,7 @@ async function openDataset(id, incident, event, channel) {
   } catch (e) {
     $('side').innerHTML = '<div class="small">No dataset loaded.</div>';
     $('blocks').innerHTML = `<div class="empty drop"><p><b>Drop a dataset here</b> or use <i>Load files…</i></p>
-      <p class="small">A dataset is a JSON file with an <code>events</code> list of event blocks (or JSONL, one block per line). See <code>docs/format.md</code>.</p>
+      <p class="small">A dataset is a JSON file with an <code>events</code> list of event blocks (or JSONL, one block per line). See <code>forel docs</code>.</p>
       <p class="small">To view a workspace and save incidents, run <code>forel serve</code> in it.<br>${esc(e.message)}</p></div>`;
   }
 })();

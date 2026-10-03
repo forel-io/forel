@@ -15,8 +15,9 @@ posts on a shared wiki. It is not built for a single coding agent's transcript.
 
 Give your coding agent (Claude Code, Codex, ...) this message, with the path to your traces:
 
-> Follow https://raw.githubusercontent.com/forel-io/forel/main/ONBOARDING.md to set up forel on the agent traces in
-> `<path/to/traces>`.
+> Follow https://forel.io/onboarding.md to set up forel on the agent traces in `<path/to/traces>`. If you can't fetch
+> it, read https://github.com/forel-io/forel/blob/main/ONBOARDING.md, or `git clone https://github.com/forel-io/forel`
+> and read `ONBOARDING.md`. If none of these work, tell me and I'll paste it.
 
 The agent will:
 
@@ -77,7 +78,7 @@ come back when you reopen it.
 ## Docs
 
 - [ONBOARDING.md](ONBOARDING.md): the instructions your coding agent follows
-- [docs/format.md](docs/format.md): the dataset and incident formats
+- [forel/docs/format.md](forel/docs/format.md): the dataset and incident formats (`forel docs` prints it)
 
 ## License
 

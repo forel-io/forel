@@ -1,10 +1,11 @@
-# Rebuild the public website (which embeds forel/viewer/index.html) when the viewer changes.
+# Rebuild the public website when what it serves changes: the viewer it embeds (forel/viewer/index.html) and the
+# agent instructions (ONBOARDING.md, at forel.io/onboarding.md, and the formats doc).
 # The deploy hook URL is a repository secret; forks don't have it, so there this does nothing.
 name: Deploy website
 on:
   push:
     branches: [main]
-    paths: [forel/viewer/index.html]
+    paths: [forel/viewer/index.html, ONBOARDING.md, forel/docs/format.md]
   workflow_dispatch:
 jobs:
   deploy:

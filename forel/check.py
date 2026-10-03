@@ -1,4 +1,4 @@
-"""Check a workspace's datasets and incident files (formats: docs/format.md).
+"""Check a workspace's datasets and incident files (formats: forel/docs/format.md, `forel docs`).
 
     forel check WORKSPACE                       # every incident file in incidents/
     forel check WORKSPACE overview ...          # just these incidents

@@ -24,4 +24,4 @@ packages = ["forel"]
 version = {attr = "forel.__version__"}
 
 [tool.setuptools.package-data]
-forel = ["viewer/*"]
+forel = ["viewer/*", "docs/*"]
