@@ -328,7 +328,7 @@ body.has-story > header { grid-column: 1 / -1; }
   </div>
   <div id="tlRow">
     <div id="tlWrap"><canvas id="tlCanvas" height="40"></canvas></div>
-    <div id="tagPanel" class="hidden"></div><div id="tagGrip" title="Drag to resize the tags panel; double-click to reset"></div>
+    <div id="tagPanel" class="hidden"></div><div id="tagGrip" title="Drag to resize the tags panel (drag it narrow to collapse it); double-click to reset"></div>
   </div>
   <div id="laneAdd" class="hidden"><input type="search" placeholder="Filter…"><div class="list"></div></div>
 </section>
@@ -2322,12 +2322,19 @@ $('storyFold').onclick = () => {
   if (storyEditing) finishEdit(true);
   cells.forEach(c => { if (all) delete c.collapsed; else c.collapsed = true; }); changed();
 };
-(() => {  // drag the tags panel's left edge to resize it
+(() => {  // drag the tags panel's left edge to resize it; dragged well below its narrowest, it collapses to its strip
   const g = $('tagGrip'), row = $('tlRow');
   try { const w = localStorage.getItem('tagW'); if (w) row.style.setProperty('--tag-w', w); } catch {}
   g.onpointerdown = e => {
     g.setPointerCapture(e.pointerId); g.classList.add('drag');
-    g.onpointermove = m => { const w = Math.max(160, Math.min(row.clientWidth * 0.6, row.getBoundingClientRect().right - m.clientX)); row.style.setProperty('--tag-w', w + 'px'); draw(); };
+    g.onpointermove = m => {
+      const want = row.getBoundingClientRect().right - m.clientX;
+      if (want < 100) {  // collapse; the width it had stays saved, for when it opens again
+        g.onpointerup(); g.releasePointerCapture(e.pointerId);
+        tagShut = true; try { localStorage.setItem('tagShut', '1'); } catch {} renderTags(); draw(); return;
+      }
+      const w = Math.max(160, Math.min(row.clientWidth * 0.6, want)); row.style.setProperty('--tag-w', w + 'px'); draw();
+    };
     g.onpointerup = () => { g.onpointermove = null; g.classList.remove('drag'); try { localStorage.setItem('tagW', row.style.getPropertyValue('--tag-w')); } catch {} };
   };
   g.ondblclick = () => { row.style.removeProperty('--tag-w'); try { localStorage.removeItem('tagW'); } catch {} draw(); };
