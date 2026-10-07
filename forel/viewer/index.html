@@ -494,8 +494,9 @@ async function loadDataset(id) {
   await loadIncidentList();
 }
 async function loadIncidentList() {
-  incList = incList.filter(x => x.local);
-  try { const r = await fetch('incidents/index.json', { cache: 'no-store' }); if (r.ok) incList = incList.concat(await r.json()); } catch {}
+  let listed = [];  // fetched before incList is touched, so two loads that overlap (a poll during loadDataset) can't both append
+  try { const r = await fetch('incidents/index.json', { cache: 'no-store' }); if (r.ok) listed = await r.json(); } catch {}
+  incList = incList.filter(x => x.local).concat(listed);
   fillSelectors();
 }
 function fillSelectors() {
