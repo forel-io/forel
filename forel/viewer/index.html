@@ -396,7 +396,7 @@ const MAX_HITS_SHOWN = 200;
 let datasets = [], DS = null, E = [];           // E = event blocks of the current dataset, sorted by time
 let agents = [], byId = new Map();              // agents: [{key, name, type, n, idxs, hue, bg}]
 let incList = [], INC = null, incId = null, actById = new Map();
-let focus = -1, ctxBy = 'all';                    // ctxBy: what the event list (its open tab) follows: 'all', 'agent' or 'channel'
+let focus = -1, anchor = -1, ctxBy = 'all';       // anchor: the event the person last chose, which follows them from tab to tab. ctxBy: what the event list (its open tab) follows: 'all', 'agent' or 'channel'
 let channels = [], chanByKey = new Map(), chFilter = '';  // channels: [{key, n, idxs, agents}]
 let scope = 'all', xmode = 'time', view = { a: 0, b: 1 }, lanes = [], laneOf = new Map();
 let hidden = new Set(), hits = [], hitCur = -1, showOthers = true;
@@ -478,7 +478,7 @@ function setDataset(id, title, events) {
   for (const e of E) bins.add(Math.min(199, Math.floor((e._t - t0) / w)));
   DS.gappy = bins.size < 100;
   hidden = new Set(); hits = []; hitCur = -1; $('search').value = ''; $('searchCount').textContent = ''; $('hitNav').classList.add('hidden');
-  INC = null; incId = null; actById = new Map(); focus = -1; scope = 'all';
+  INC = null; incId = null; actById = new Map(); focus = anchor = -1; scope = 'all';
   storyEditing = null; renderStory();
   $('dbar').classList.remove('hidden');
 }
@@ -1349,9 +1349,9 @@ function renderDetail(scroll = true) {  // scroll: a fresh list centered on the 
   else { const k = Math.max(0, rows.indexOf(top)); keepPlace(top, () => buildList(top, k, Math.max(CHUNK, rows.length - k - 1))); }
   showPos(); fill();
 }
-function setFocus(i, scroll = true) {
+function setFocus(i, scroll = true, chosen = true) {  // chosen: the person picked this event (not the viewer standing in for one), so it becomes the anchor
   if (i == null || i < 0 || i >= E.length) return;
-  const old = focus; focus = i; centerOn(i); focusLane(); revealFocus = true;
+  const old = focus; focus = i; if (chosen) anchor = i; centerOn(i); focusLane(); revealFocus = true;
   if (!inTab(i)) { saveTab(); tabCur = allTab(); ctxBy = 'all'; renderTabs(); }  // an event outside the open tab: back to all events
   if (rowsTab === tabs[tabCur] && rowEl(i)) {  // already in the list: move the focus there, without rebuilding
     keepPlace(i, () => {
@@ -1387,13 +1387,15 @@ addEventListener('message', e => {
 });
 // Tabs over the event list: "All events" (closable, reopened when needed), plus one per agent or channel (opened from a block's name or channel tag),
 // and search tabs (opened with +).
-// Each tab keeps its own open event and scroll position.
+// The open event follows the person: a tab opens on the anchor (the event they last chose) if it has it, else on its nearest event.
+// Each tab keeps its scroll position for when it opens on the same event as before.
 // A tab: {by, base: its own events {name|key, idxs, n}, ctx: context around them, ref: base plus context (what the list shows),
 // view: a custom view's definition (by 'view'), p: a search's parameters (by 'search'), focus, top: the event at the top of the screen, off: its offset}
 let tabs = [{ by: 'all' }], tabCur = 0;
 const lowerIdx = (idxs, i) => { let lo = 0, hi = idxs.length; while (lo < hi) { const m = (lo + hi) >> 1; idxs[m] < i ? lo = m + 1 : hi = m; } return lo; };
 const hasIdx = (idxs, i) => idxs[lowerIdx(idxs, i)] === i;
 const inTab = i => { const t = tabs[tabCur]; return !t.ref || hasIdx(t.ref.idxs, i); };
+const nearIdx = (idxs, i) => idxs[Math.min(lowerIdx(idxs, i), idxs.length - 1)];  // i if there, else the first after it, else the last
 function allTab() {  // the All events tab's index; reopened first if it was closed
   let k = tabs.findIndex(t => t.by === 'all');
   if (k < 0) { tabs.unshift({ by: 'all' }); tabCur++; k = 0; }
@@ -1416,8 +1418,9 @@ function switchTab(k) {
   if (t.by === 'view') { t.base = viewRef(t.view); applyCtx(t); }  // a view follows the latest pins and tags each time it is opened
   if (t.ref && !t.ref.n && t.by !== 'search') return status('This view has no events right now');
   saveTab(); tabCur = k; ctxBy = t.by; renderTabs();
-  if (t.focus != null) focus = t.focus;
-  if (t.ref?.n && !inTab(focus)) { focus = t.ref.idxs[Math.min(lowerIdx(t.ref.idxs, focus), t.ref.n - 1)]; t.top = null; }
+  const a = anchor >= 0 ? anchor : focus;
+  focus = t.ref?.n ? nearIdx(t.ref.idxs, a) : a;
+  if (focus !== t.focus) t.top = null;  // not the event the tab was left on: center it
   if (t.top == null || !inTab(t.top)) renderDetail();
   else { buildList(t.top); const pane = $('detail'); pane.scrollTop += rowEl(t.top).getBoundingClientRect().top - pane.getBoundingClientRect().top - t.off; showPos(); fill(); }
   centerOn(focus); draw(); updateURL();
@@ -1432,7 +1435,7 @@ function openTab(by, ref, i, view) {  // the tab for an agent, a channel, a tag 
   if (k !== tabCur) { saveTab(); tabCur = k; ctxBy = by; }
   renderTabs(); if (by === 'view') saveViews();
   const r = tabs[k].ref;
-  setFocus(i ?? r.idxs.find(j => j >= focus) ?? r.idxs[r.idxs.length - 1]);  // by default, the first event at or after the open one
+  if (i != null) setFocus(i); else setFocus(nearIdx(r.idxs, anchor >= 0 ? anchor : focus), true, false);  // by default, the anchor or the first event after it
 }
 function closeTab(k) {
   const t = tabs[k]; if (!t || tabs.length < 2) return;  // the last tab stays open
@@ -1472,7 +1475,7 @@ function applySearch() {
   const t = tabs[tabCur]; if (!t.p) return;
   const q = t.p.q.trim(); t.q = q || undefined; t.base = searchRef(q, t.p.agents, t.p.chans); applyCtx(t); t.top = null; rowsTab = null;
   renderTabs();
-  if (t.ref.n) setFocus(t.ref.idxs[0]); else renderDetail();
+  if (t.ref.n) setFocus(t.ref.idxs[0], true, false); else renderDetail();
 }
 function renderSearchPanel() {
   const t = tabs[tabCur], p = t.p; $('sp').classList.toggle('hidden', !p); if (!p) return;
