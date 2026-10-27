@@ -1,0 +1,308 @@
+<!-- reading-layer:start (local addition, not upstream; source: reading-layer.html, injected by apply_reading_layer.py) -->
+<style id="rlCss">
+/* Reading layer: one thing at a time. body.rm-claims shows only the story (the write-up of a claim);
+   body.rm-record shows only the events (the raw record), laid out as a page with notes in the right margin.
+   Amber always means claims, blue always means the record.
+   "Full view" removes both classes and gives back the standard forel layout untouched. */
+:root { --claim: #b45309; --rec: #1d4ed8; --rl-canvas: #f1f3f4; --rl-page: #ffffff; --rl-note: #fff8e1; --rl-note-line: #f2d57a; --rl-hl: #fde68a; }
+:root[data-theme="dark"] { --claim: #f0a94a; --rec: #7aa7ff; --rl-canvas: #131417; --rl-page: #202226; --rl-note: #322b18; --rl-note-line: #6b5720; --rl-hl: #6b5720; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --claim: #f0a94a; --rec: #7aa7ff; --rl-canvas: #131417; --rl-page: #202226; --rl-note: #322b18; --rl-note-line: #6b5720; --rl-hl: #6b5720; } }
+
+#rlBar { flex: 1 0 100%; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 3px 0 1px; }
+#rlSeg .btn, #rlCold, #rlHelp { height: 28px; padding: 0 12px; font-size: 13px; }
+#rlSeg .btn[data-rm="claims"].on { background: color-mix(in srgb, var(--claim) 18%, var(--field)); border-color: var(--claim); color: var(--claim); }
+#rlSeg .btn[data-rm="record"].on { background: color-mix(in srgb, var(--rec) 16%, var(--field)); border-color: var(--rec); color: var(--rec); }
+#rlHint { color: var(--muted); font-size: 12.5px; flex: 1; min-width: 20ch; }
+#rlCold.on { background: color-mix(in srgb, var(--claim) 18%, var(--field)); border-color: var(--claim); }
+body:not(.rm-record) #rlCold { display: none; }
+body.rm-claims > header { box-shadow: inset 0 -3px 0 var(--claim); }
+body.rm-record > header { box-shadow: inset 0 -3px 0 var(--rec); }
+
+/* ---- one column, one panel ---- */
+body:is(.rm-claims, .rm-record) { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto minmax(0, 1fr) !important; }
+body:is(.rm-claims, .rm-record) > :is(#tl, #split) { display: none !important; }
+body.rm-claims.has-story > main, body.rm-record > #story { display: none !important; }
+body.rm-claims > #story { grid-column: 1 !important; grid-row: 2 !important; border-right: 0; background: var(--rl-canvas); }
+body:is(.rm-claims, .rm-record) > main { grid-column: 1 !important; grid-row: 2 !important; }
+body.rm-claims #storyGrip { display: none; }
+body.rm-claims #storyBody { padding: 18px 16px 30vh; }
+/* header: keep the case picker, the search and the view switch */
+body:is(.rm-claims, .rm-record) :is(#dsSel, #exportBtn, #storyBtn, label.btn:has(#file), label:has(#inView)) { display: none !important; }
+
+/* ---- the record as a page: a white sheet on a grey desk, notes in the margin to its right ---- */
+body.rm-record #detail { background: var(--rl-canvas); position: relative; }
+body.rm-record #blocks { width: min(816px, calc(100% - 340px)); max-width: none; margin: 18px 0 0 max(14px, calc((100% - 816px - 320px) / 2));
+  padding: 44px 64px 40vh; background: var(--rl-page); box-shadow: 0 1px 3px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.04); min-height: 100%; }
+body.rm-record .blk { margin: 0 0 18px; padding: 1px 0 1px 14px; border-radius: 0; opacity: 1 !important; background: none; border: 0;
+  border-left: 3px solid color-mix(in srgb, var(--c) 70%, var(--ink)); outline: 0 !important; cursor: text; }
+body.rm-record .blk.focus { background: color-mix(in srgb, var(--rec) 6%, transparent); box-shadow: -3px 0 0 var(--rec); }
+body.rm-record .blk :is(.text, .cot .body) { max-height: none !important; overflow: visible !important; }
+body.rm-record .text { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 11pt; line-height: 1.6; }
+body.rm-record .text pre, body.rm-record .text code { font-size: 9.5pt; }
+body.rm-record .meta { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 9pt; gap: 2px 9px; margin-bottom: 3px; }
+body.rm-record .who { font-size: 11pt; }
+body.rm-record .meta .tag { background: none; padding: 0; color: var(--muted); }
+body.rm-record .meta .tag:is([title="source"], [title="agent_type"]) { display: none; }
+body.rm-record .gap { margin: 4px 0 20px; font-size: 9pt; }
+body.rm-record details.cot { margin: 2px 0 6px; padding: 3px 10px 5px; background: color-mix(in srgb, var(--ink) 4%, transparent); }
+body.rm-record details.cot .body { font-size: 10pt; line-height: 1.55; }
+/* markers off: the record without anyone's pins, priorities, tags or comments */
+body.rm-record.rl-cold .blk :is(.pb, .tagpill, .comment, .tools) { display: none !important; }
+
+/* ---- margin notes ---- */
+#rlNotes { position: absolute; top: 0; width: 280px; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; }
+body:not(.rm-record) #rlNotes { display: none; }
+.rl-card { position: absolute; left: 0; width: 100%; padding: 8px 11px 9px; border-radius: 8px; background: var(--rl-page); border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(0,0,0,.12); font-size: 10pt; line-height: 1.45; cursor: pointer; transition: box-shadow .12s; }
+.rl-card:hover, .rl-card.on, .rl-card.draft { box-shadow: 0 3px 10px rgba(0,0,0,.2); border-color: var(--rl-note-line); background: var(--rl-note); z-index: 2; }
+.rl-card .rl-q { color: var(--muted); font-size: 9pt; border-left: 3px solid var(--rl-hl); padding-left: 7px; margin-bottom: 5px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rl-card .rl-t { white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rl-card:is(:hover, .on) :is(.rl-q, .rl-t) { -webkit-line-clamp: unset; }
+.rl-card .rl-a { display: none; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+.rl-card:is(:hover, .on, .draft) .rl-a { display: flex; }
+.rl-card .rl-a button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 2px 6px; border-radius: 4px; font: inherit; font-size: 9.5pt; }
+.rl-card .rl-a button:hover { background: var(--hover); }
+.rl-card .rl-a button.go { background: var(--accent); color: #fff; font-weight: 600; }
+.rl-card textarea { display: block; width: 100%; min-height: 64px; resize: vertical; border: 1px solid var(--line2); border-radius: 5px; padding: 5px 7px;
+  background: var(--field); color: var(--ink); font: inherit; }
+#rlAdd { position: absolute; left: -30px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line2); background: var(--rl-page); color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: pointer; font-size: 17px; line-height: 1; z-index: 3; display: grid; place-items: center; }
+#rlAdd:hover { background: var(--rl-note); }
+::highlight(rl-note) { background-color: var(--rl-hl); }
+
+#rlGuide .vbbody { font-size: 14px; line-height: 1.6; }
+#rlGuide ol { margin: 6px 0 0; padding-left: 22px; } #rlGuide li { margin: 6px 0; }
+#rlGuide .c { color: var(--claim); font-weight: 600; } #rlGuide .r { color: var(--rec); font-weight: 600; }
+</style>
+<script>
+(() => {
+  const HINT = {
+    claims: 'The write-up of the claim: an interpretation, not the record. Click any link or timeline marker to see that event in the record.',
+    record: 'The raw events, in order. Select text and click ＋ in the margin to note it (n notes the open event).',
+    full: 'The standard forel layout.',
+  };
+  // Story cells live in a shadow root, so their reading styles are a sheet switched on only in the claims view.
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(`
+    .sv-cell { max-width: 816px; margin: 0 auto; padding: 14px 56px 20px 40px; background: var(--rl-page); }
+    .sv-cell:first-child { padding-top: 36px; }
+    .sv-body { font-size: 16.5px; line-height: 1.7; }
+    .sv-body :is(h1, h2, h3, h4) { line-height: 1.3; }
+    .sv-tools, .sv-lock:not(.on) { opacity: 0; transition: opacity .12s; }
+    .sv-cell:hover :is(.sv-tools, .sv-lock) { opacity: 1; }
+  `);
+  storyRoot.adoptedStyleSheets = [...storyRoot.adoptedStyleSheets, sheet];
+
+  let mode = 'full', cold = true;  // the standard layout until a reading view is chosen; the choice is remembered
+  try { mode = localStorage.getItem('rlMode') || 'full'; cold = localStorage.getItem('rlCold') !== '0'; } catch {}
+  const asked = new URLSearchParams(location.search).get('rl'); if (asked in HINT) mode = asked;
+
+  const bar = document.createElement('div'); bar.id = 'rlBar';
+  bar.innerHTML = `<span class="seg" id="rlSeg">
+      <button class="btn" data-rm="claims" title="Only the story: the write-up of the claim (g switches between ① and ②)">① Claims</button>
+      <button class="btn" data-rm="record" title="Only the events: the raw record, as a page with your notes in the margin (g switches between ① and ②)">② Record</button>
+      <button class="btn" data-rm="full" title="The standard forel layout, with the timeline and tags (f)">Full view</button></span>
+    <button class="btn" id="rlCold" title="Show or hide pins, priorities, tags and comments on the events (m)"></button>
+    <span id="rlHint"></span>
+    <button class="btn" id="rlHelp" title="A short routine for reviewing one case (?)">How to review a case</button>`;
+  document.querySelector('header').append(bar);
+
+  const guide = document.createElement('div'); guide.id = 'rlGuide'; guide.className = 'modalBack hidden';
+  guide.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><div class="vbhead"><b>How to review a case</b><button class="vbx" title="Close (Esc)">×</button></div>
+    <div class="vbbody">Two views, kept apart: <span class="c">① Claims</span> is someone's write-up; <span class="r">② Record</span> is what the agents actually did.
+    <ol>
+      <li>Pick the case in the incident menu (top left).</li>
+      <li>In <span class="c">① Claims</span>, read only the first cell: what is being claimed, in one or two sentences.</li>
+      <li>Click the first link in it. You land in <span class="r">② Record</span> on that event, in its channel, with markers off.</li>
+      <li>Read the record around it, in order: scroll up to before the claim first appears, then down until it is settled. Open <i>reasoning</i> where an agent says it checked something.</li>
+      <li>Note what you see as you go: select a passage and click <b>＋</b> in the margin, or press <kbd>n</kbd> to note the open event. Notes sit in the right margin.</li>
+      <li>Press <kbd>g</kbd> to go back to <span class="c">① Claims</span> and read the rest. Where the write-up and your reading differ, follow its link and check.</li>
+      <li>Turn <b>Markers</b> on (<kbd>m</kbd>) to see what was pinned and tagged, and whether anything you found important was left out.</li>
+      <li>Add your verdict as a note cell at the end of the story (<b>+ Cell</b>). Your margin notes are listed there too, each linked to its event.</li>
+    </ol>
+    <p class="small">Keys: <kbd>g</kbd> claims / record · <kbd>n</kbd> note · <kbd>m</kbd> markers · <kbd>f</kbd> full view · <kbd>←</kbd> <kbd>→</kbd> previous / next event · <kbd>/</kbd> search · <kbd>?</kbd> this guide. In a note: <kbd>⌘⏎</kbd> save, <kbd>Esc</kbd> cancel.</p></div></div>`;
+  document.body.append(guide);
+  const showGuide = on => guide.classList.toggle('hidden', !on);
+  guide.addEventListener('click', e => { if (e.target === guide || e.target.closest('.vbx')) showGuide(false); });
+  $('rlHelp').onclick = () => showGuide(true);
+
+  // ---------- margin notes ----------
+  // A note is an ordinary forel story cell written by a person (markdown, locked), so it is saved in the incident file,
+  // shows in the stock viewer at the end of the story, and agents must not change it. Its first line links the event:
+  //   **Note** on [<agent> · <time>](event:<event_id>)
+  //   > the passage it is about (optional, one line)
+  //
+  //   the note
+  const HEAD = /^\*\*Note\*\* on \[[^\]]*\]\(event:([^)?]+)[^)]*\)\s*$/;
+  const squash = s => String(s).replace(/\s+/g, ' ').trim();
+  function parseNote(c) {
+    if (c.format !== 'markdown') return null;
+    const lines = cellBody(c).split('\n'), m = HEAD.exec(lines[0] || ''); if (!m) return null;
+    let k = 1; const q = []; while (k < lines.length && lines[k].startsWith('> ')) q.push(lines[k++].slice(2));
+    while (k < lines.length && !lines[k].trim()) k++;
+    return { cell: c, event: m[1], quote: squash(q.join(' ')), text: lines.slice(k).join('\n') };
+  }
+  function noteBody(i, quote, text) {
+    const e = E[i], who = String(e._a.name).replace(/[\[\]]/g, '');
+    return [`**Note** on [${who} · ${fmtT(e._t, false)}](event:${e.event_id})`, ...(quote ? ['> ' + quote] : []), '', ...text.split('\n')];
+  }
+  const notes = () => storyCells().map(parseNote).filter(Boolean);
+
+  const box = document.createElement('div'); box.id = 'rlNotes'; $('detail').append(box);
+  const addBtn = document.createElement('button'); addBtn.id = 'rlAdd'; addBtn.title = 'Add a note on the selected text'; addBtn.textContent = '＋';
+  let draft = null, draftEl = null, pick = null, activeId = null;  // draft: {i, quote, id (when editing a note)}; pick: the selection the ＋ button is for
+
+  function findRange(blk, quote) {  // the passage a note quotes, found again by its text (whitespace-insensitive)
+    for (const part of blk.querySelectorAll('.text, .cot .body')) {
+      const w = document.createTreeWalker(part, NodeFilter.SHOW_TEXT), at = []; let s = '';
+      for (let n; (n = w.nextNode());) { const t = n.nodeValue;
+        for (let k = 0; k < t.length; k++) { const ch = /\s/.test(t[k]) ? ' ' : t[k]; if (ch === ' ' && (!s || s.endsWith(' '))) continue; s += ch; at.push([n, k]); } }
+      const p = s.indexOf(quote); if (p < 0) continue;
+      const r = new Range(); r.setStart(...at[p]); const [n, k] = at[p + quote.length - 1]; r.setEnd(n, k + 1); return r;
+    }
+    return null;
+  }
+  function cardFor(n) {
+    const el = document.createElement('div'); el.className = 'rl-card' + (n.cell.id === activeId ? ' on' : ''); el.dataset.id = n.cell.id;
+    if (n.quote) { const q = document.createElement('div'); q.className = 'rl-q'; q.textContent = n.quote; el.append(q); }
+    const t = document.createElement('div'); t.className = 'rl-t'; t.textContent = n.text || '(empty note)'; el.append(t);
+    const a = document.createElement('div'); a.className = 'rl-a'; a.innerHTML = '<button data-act="edit">Edit</button><button data-act="del">Delete</button>'; el.append(a);
+    return el;
+  }
+  function draftCard() {
+    if (draftEl) return draftEl;
+    const el = draftEl = document.createElement('div'); el.className = 'rl-card draft';
+    if (draft.quote) { const q = document.createElement('div'); q.className = 'rl-q'; q.textContent = draft.quote; el.append(q); }
+    const ta = document.createElement('textarea'); ta.placeholder = 'Add a note…'; ta.value = draft.text || ''; el.append(ta);
+    const a = document.createElement('div'); a.className = 'rl-a'; a.innerHTML = '<button data-act="cancel">Cancel</button><button data-act="save" class="go">Save</button>'; el.append(a);
+    return el;
+  }
+  let queued = false;
+  function layoutSoon() { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; layout(); }); } }
+  function layout() {
+    if (mode !== 'record') { box.replaceChildren(); CSS.highlights?.delete('rl-note'); return; }
+    const det = $('detail'), page = $('blocks'), dr = det.getBoundingClientRect(), pr = page.getBoundingClientRect();
+    const y = r => r.top - dr.top + det.scrollTop;
+    box.style.left = (pr.right - dr.left + det.scrollLeft + 18) + 'px';
+    const items = notes().filter(n => !(draft && draft.id === n.cell.id)).map(n => ({ n, i: byId.get(String(n.event)), quote: n.quote }));
+    if (draft) items.push({ draft: true, i: draft.i, quote: draft.quote });
+    const marks = [], placed = [];
+    for (const it of items) {
+      const blk = it.i == null ? null : page.querySelector(`.row[data-i="${it.i}"] .blk`); if (!blk) continue;  // its event is not in the list on screen
+      let top = y(blk.getBoundingClientRect());
+      const r = it.quote && findRange(blk, it.quote);
+      if (r) { marks.push(r); const rr = r.getBoundingClientRect(); if (rr.height) top = y(rr); }
+      placed.push({ ...it, top });
+    }
+    placed.sort((a, b) => a.top - b.top);
+    const typing = draftEl && draftEl.contains(document.activeElement);
+    const els = placed.map(p => { const el = p.draft ? draftCard() : cardFor(p.n); el._top = p.top; return el; });
+    box.replaceChildren(...els, ...(pick ? [addBtn] : []));
+    let floor = 0; for (const el of els) { const t = Math.max(el._top - 4, floor); el.style.top = t + 'px'; floor = t + el.offsetHeight + 8; }
+    if (pick) addBtn.style.top = (pick.top - 4) + 'px';
+    if (typing) draftEl.querySelector('textarea').focus({ preventScroll: true });  // re-attaching the card dropped the focus
+    if (window.Highlight && CSS.highlights) CSS.highlights.set('rl-note', new Highlight(...marks));
+  }
+  function startDraft(i, quote, note) {
+    if (!ensureIncident()) return;
+    draft = { i, quote, id: note?.cell.id, text: note?.text }; draftEl = null; pick = null; layout();
+    draftEl?.querySelector('textarea').focus({ preventScroll: true });
+  }
+  function endDraft(save) {
+    if (!draft) return;
+    const text = draftEl?.querySelector('textarea').value.trim() ?? '', d = draft; draft = null; draftEl = null;
+    if (save && text) {
+      const cells = storyCells(), body = noteBody(d.i, d.quote, text), title = 'Note: ' + squash(text).slice(0, 60);
+      const c = d.id && cells.find(x => x.id === d.id);
+      if (c) { c.body = body; c.title = title; c.author = 'human'; activeId = c.id; }
+      else { const id = newCellId(); cells.push({ id, author: 'human', format: 'markdown', locked: true, title, body }); activeId = id; }
+      changed();
+    }
+    layoutSoon();
+  }
+  box.addEventListener('mousedown', e => { if (e.target === addBtn) e.preventDefault(); });  // keep the selection
+  box.addEventListener('click', e => {
+    if (e.target === addBtn) return pick && startDraft(pick.i, pick.quote);
+    const act = e.target.closest('[data-act]')?.dataset.act, card = e.target.closest('.rl-card'); if (!card) return;
+    if (act === 'save') return endDraft(true);
+    if (act === 'cancel') return endDraft(false);
+    const n = notes().find(x => x.cell.id === card.dataset.id); if (!n) return;
+    const i = byId.get(String(n.event));
+    if (act === 'edit') return startDraft(i, n.quote, n);
+    if (act === 'del') { if (confirm('Delete this note?')) { const cells = storyCells(); cells.splice(cells.indexOf(n.cell), 1); changed(); layoutSoon(); } return; }
+    activeId = n.cell.id; if (i != null && i !== focus) setFocus(i, false); layoutSoon();
+  });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); endDraft(true); }
+    else if (e.key === 'Escape') { e.stopPropagation(); endDraft(false); }
+  });
+  // Selecting text in an event offers the ＋ button beside it; the click that ends a selection must not re-render the event.
+  function readSelection() {
+    const sel = getSelection(), el = n => (n?.nodeType === 1 ? n : n?.parentElement)?.closest?.('#blocks .blk');
+    const a = !sel.isCollapsed && el(sel.anchorNode), quote = a && a === el(sel.focusNode) ? squash(sel.toString()).slice(0, 400) : '';
+    const was = pick; pick = null;
+    if (quote && mode === 'record' && !draft) {
+      const det = $('detail'), r = sel.getRangeAt(0).getBoundingClientRect();
+      pick = { i: +a.dataset.i, quote, top: r.top - det.getBoundingClientRect().top + det.scrollTop };
+    }
+    if (pick || was) layoutSoon();
+  }
+  document.addEventListener('selectionchange', readSelection);
+  $('detail').addEventListener('click', e => {
+    if (mode === 'record' && !getSelection().isCollapsed && e.target.closest('.blk') && !e.target.closest('.tools, .who, .chan, details > summary')) e.stopPropagation();
+  }, true);
+  new MutationObserver(layoutSoon).observe($('blocks'), { childList: true, subtree: true });
+  $('blocks').addEventListener('toggle', layoutSoon, true);  // a reasoning block opened or closed
+  addEventListener('resize', layoutSoon);
+
+  // ---------- views ----------
+  const scroller = { claims: () => $('storyBody'), record: () => $('detail') }, pos = {};
+  function ensureStory() {  // the claims view needs the story panel open
+    if (mode === 'claims' && !storyOpen && !$('storyBtn').classList.contains('hidden')) $('storyBtn').click();
+  }
+  function apply(next, toFocus) {
+    if (scroller[mode]) pos[mode] = scroller[mode]().scrollTop;
+    mode = next; try { localStorage.setItem('rlMode', mode); } catch {}
+    document.body.classList.toggle('rm-claims', mode === 'claims');
+    document.body.classList.toggle('rm-record', mode === 'record');
+    document.body.classList.toggle('rl-cold', cold);
+    sheet.disabled = mode !== 'claims';
+    for (const b of bar.querySelectorAll('[data-rm]')) b.classList.toggle('on', b.dataset.rm === mode);
+    $('rlCold').textContent = cold ? 'Markers: off' : 'Markers: on'; $('rlCold').classList.toggle('on', !cold);
+    $('rlHint').textContent = HINT[mode];
+    ensureStory();
+    requestAnimationFrame(() => {
+      try { if (mode !== 'record' && !storyEditing) renderStory(); } catch {}
+      dispatchEvent(new Event('resize')); try { draw(); } catch {}
+      if (toFocus || mode === 'full' || (mode === 'record' && pos.record == null)) { try { setFocus(focus); } catch {} }  // laid out while hidden: scroll to the open event
+      else if (scroller[mode] && pos[mode] != null) scroller[mode]().scrollTop = pos[mode];
+      layoutSoon();
+    });
+  }
+  bar.querySelector('#rlSeg').onclick = e => { const b = e.target.closest('[data-rm]'); if (b) apply(b.dataset.rm); };
+  $('rlCold').onclick = () => { cold = !cold; try { localStorage.setItem('rlCold', cold ? '1' : '0'); } catch {} apply(mode); };
+
+  // A click in the story that opens an event (a link, a timeline marker) moves to the record, on that event.
+  storyRoot.addEventListener('click', ev => {
+    if (mode !== 'claims' || ev.target.closest?.('.sv-cell.editing')) return;
+    const f0 = focus, t0 = tabCur, link = !!ev.target.closest?.('[data-event]');
+    setTimeout(() => { if (link || focus !== f0 || tabCur !== t0) apply('record', true); }, 0);
+  }, true);
+  new MutationObserver(ensureStory).observe($('storyBtn'), { attributes: true, attributeFilter: ['class'] });  // an incident has just opened
+
+  document.addEventListener('keydown', e => {
+    const t = e.composedPath()[0];
+    if (e.metaKey || e.ctrlKey || e.altKey || t?.isContentEditable || t?.matches?.('input, select, textarea')) return;
+    if (e.key === 'Escape') return showGuide(false);
+    if (typeof storyEditing !== 'undefined' && storyEditing) return;
+    if (e.key === 'g') apply(mode === 'claims' ? 'record' : 'claims');
+    else if (e.key === 'f') apply(mode === 'full' ? 'claims' : 'full');
+    else if (e.key === 'm' && mode === 'record') $('rlCold').click();
+    else if (e.key === 'n' && mode === 'record' && focus >= 0) { e.preventDefault(); pick ? startDraft(pick.i, pick.quote) : startDraft(focus, ''); }
+    else if (e.key === '?') showGuide(true);
+  });
+  apply(mode);
+})();
+</script>
+<!-- reading-layer:end -->
